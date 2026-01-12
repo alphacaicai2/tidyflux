@@ -1,0 +1,378 @@
+/**
+ * ViewUtils - 视图工具函数模块
+ * @module view/utils
+ */
+
+import { i18n } from '../i18n.js';
+
+/**
+ * 转义 HTML 特殊字符，防止 XSS
+ * @param {string} text - 原始文本
+ * @returns {string} 转义后的文本
+ */
+export function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+/**
+ * 格式化日期为友好的相对时间或日期字符串
+ * @param {string} dateString - ISO 日期字符串
+ * @returns {string} 格式化后的日期
+ */
+export function formatDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) return i18n.t('article.minutes_ago', { count: diffMins });
+    if (diffHours < 24) return i18n.t('article.hours_ago', { count: diffHours });
+    if (diffDays < 7) return i18n.t('article.days_ago', { count: diffDays });
+
+    const locale = i18n.locale === 'zh' ? 'zh-CN' : 'en-US';
+    return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+}
+
+/**
+ * 检测是否为 iOS Safari 浏览器
+ * @returns {boolean}
+ */
+export function isIOSSafari() {
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua);
+    const isWebkit = /WebKit/.test(ua);
+    const isChrome = /CriOS/.test(ua);
+    return isIOS && isWebkit && !isChrome;
+}
+
+/**
+ * 检测是否为移动设备
+ * @returns {boolean}
+ */
+export function isMobileDevice() {
+    return (
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        (window.innerWidth <= 1024)
+    );
+}
+
+/**
+ * 从 HTML 内容中提取第一张图片 URL
+ * @param {string} content - HTML 内容
+ * @returns {string|null} 图片 URL 或 null
+ */
+export function extractFirstImage(content) {
+    if (!content) return null;
+
+    // 解码 HTML 实体
+    const decoded = content
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&');
+
+    // 检查是否为 SVG 或占位符图片
+    const isInvalidImage = (url) => {
+        if (!url) return true;
+        const lowerUrl = url.toLowerCase();
+        // 排除 SVG (性能黑洞) 和 占位符
+        return lowerUrl.endsWith('.svg') || lowerUrl.includes('.svg?') || lowerUrl.includes('grey-placeholder.png');
+    };
+
+    // 检查图片尺寸是否太小
+    const isTooSmall = (imgTag) => {
+        const widthMatch = imgTag.match(/width\s*=\s*["']?(\d+)["']?/i);
+        const heightMatch = imgTag.match(/height\s*=\s*["']?(\d+)["']?/i);
+        return !!((widthMatch && parseInt(widthMatch[1]) < 100) ||
+            (heightMatch && parseInt(heightMatch[1]) < 100));
+    };
+
+    // 匹配 img 标签
+    const imgRegex = /<img\s+([^>]+)>/gi;
+    let match;
+
+    while ((match = imgRegex.exec(decoded)) !== null) {
+        const attributes = match[1];
+        let srcMatch = attributes.match(/src\s*=\s*["']([^"']+)["']/i);
+        let src = srcMatch ? srcMatch[1] : null;
+
+        // 尝试 data-src
+        if (!src) {
+            srcMatch = attributes.match(/data-src\s*=\s*["']([^"']+)["']/i);
+            src = srcMatch ? srcMatch[1] : null;
+        }
+
+        if (src && !src.startsWith('data:') && !isInvalidImage(src) && !isTooSmall(attributes)) {
+            return src;
+        }
+    }
+
+    // 尝试 figure/picture 内的图片
+    match = decoded.match(/<(?:figure|picture)[^>]*>.*?<img[^>]+src\s*=\s*["']([^"']+)["']/is);
+    if (match && match[1] && !match[1].startsWith('data:') && !isInvalidImage(match[1])) {
+        return match[1];
+    }
+
+    // 尝试 srcset
+    match = decoded.match(/srcset\s*=\s*["']([^\s"']+)/i);
+    if (match && match[1] && !isInvalidImage(match[1])) {
+        return match[1];
+    }
+
+    // 尝试匹配纯 URL
+    const urlRegex = /(https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|gif|webp))/gi;
+    while ((match = urlRegex.exec(decoded)) !== null) {
+        const url = match[1];
+        if (url && !isInvalidImage(url)) return url;
+    }
+
+    return null;
+}
+
+/**
+ * 生成缩略图 URL
+ * @param {string|null} originalUrl - 原始图片 URL
+ * @returns {string|null} 缩略图 URL
+ */
+export function getThumbnailUrl(originalUrl) {
+    if (!originalUrl) return null;
+    // 直接返回原始 URL，由前端负责加载（减轻服务器压力）
+    return originalUrl;
+}
+
+/**
+ * 显示 Toast 提示
+ * @param {string} message - 提示消息
+ * @param {number} duration - 显示时长(毫秒)
+ * @param {boolean} showLoadingIcon - 是否显示加载图标
+ */
+let toastTimeout = null;
+export function showToast(message, duration = 3000, showLoadingIcon = true, onClick = null, relativeTo = null) {
+    const articlesPanel = document.getElementById('articles-panel');
+    let toast = document.getElementById('app-toast');
+
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'app-toast';
+        document.body.appendChild(toast);
+    }
+
+    let leftPos = '50%';
+    if (relativeTo && relativeTo.getBoundingClientRect) {
+        const rect = relativeTo.getBoundingClientRect();
+        leftPos = `${rect.left + rect.width / 2}px`;
+    } else if (articlesPanel) {
+        const rect = articlesPanel.getBoundingClientRect();
+        leftPos = `${rect.left + rect.width / 2}px`;
+    }
+
+    toast.style.cssText = `
+        position: fixed;
+        top: 10px;
+        left: ${leftPos};
+        transform: translateX(-50%);
+        background: var(--card-bg);
+        backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+        color: var(--text-color);
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        box-shadow: var(--card-shadow);
+        z-index: 1000;
+        font-size: 0.85em;
+        font-weight: 500;
+        opacity: 0;
+        transition: opacity 0.3s ease, box-shadow 0.2s ease;
+        pointer-events: ${onClick ? 'auto' : 'none'};
+        cursor: ${onClick ? 'pointer' : 'default'};
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    `;
+
+    const iconHtml = showLoadingIcon ? `
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite; flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+        <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
+    ` : '';
+
+    toast.innerHTML = `
+        ${iconHtml}
+        ${message}
+    `;
+
+    // 强制 reflow
+    toast.offsetWidth;
+    toast.style.opacity = '1';
+
+    if (onClick) {
+        toast.onclick = () => {
+            onClick();
+            toast.style.opacity = '0';
+            if (toastTimeout) clearTimeout(toastTimeout);
+        };
+    } else {
+        toast.onclick = null;
+    }
+
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+        toast.style.opacity = '0';
+    }, duration);
+}
+
+// 模块级变量：跟踪当前活动的菜单关闭处理器
+let activeContextMenuCloseHandler = null;
+
+/**
+ * 创建上下文菜单基础结构
+ * @param {MouseEvent} event - 鼠标事件
+ * @param {string} innerHTML - 菜单 HTML 内容
+ * @returns {{menu: HTMLElement, cleanup: Function}} 菜单元素和清理函数
+ */
+export function createContextMenu(event, innerHTML) {
+    // 移除已有的上下文菜单和事件监听器
+    document.querySelectorAll('.context-menu').forEach(m => m.remove());
+    if (activeContextMenuCloseHandler) {
+        document.removeEventListener('click', activeContextMenuCloseHandler, true);
+        activeContextMenuCloseHandler = null;
+    }
+
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.innerHTML = innerHTML;
+    document.body.appendChild(menu);
+
+    // 定位菜单
+    const menuWidth = 180;
+    const menuHeight = menu.offsetHeight;
+    let x = event.clientX;
+    let y = event.clientY;
+
+    if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - 10;
+    }
+    if (y + menuHeight > window.innerHeight) {
+        y = window.innerHeight - menuHeight - 10;
+    }
+
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+
+    // 点击外部关闭（使用 capture 阶段，阻止事件冒泡到底层元素）
+    const closeHandler = (e) => {
+        if (!menu.contains(e.target)) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            menu.remove();
+            document.removeEventListener('click', closeHandler, true);
+            activeContextMenuCloseHandler = null;
+        }
+    };
+    activeContextMenuCloseHandler = closeHandler;
+    setTimeout(() => document.addEventListener('click', closeHandler, true), 0);
+
+    return {
+        menu,
+        cleanup: () => {
+            menu.remove();
+            document.removeEventListener('click', closeHandler, true);
+            activeContextMenuCloseHandler = null;
+        }
+    };
+}
+
+/**
+ * 创建对话框基础结构
+ * @param {string} className - 对话框类名
+ * @param {string} innerHTML - 对话框内容 HTML
+ * @returns {{dialog: HTMLElement, close: Function}} 对话框元素和关闭函数
+ */
+export function createDialog(className, innerHTML) {
+    const dialog = document.createElement('div');
+    dialog.className = `${className} active`;
+    dialog.innerHTML = innerHTML;
+    document.body.appendChild(dialog);
+    document.body.classList.add('dialog-open');
+
+    const close = () => {
+        dialog.classList.remove('active');
+        setTimeout(() => {
+            dialog.remove();
+            document.body.classList.remove('dialog-open');
+        }, 200);
+    };
+
+    // 点击背景关闭
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) close();
+    });
+
+    // ESC 关闭
+    const escHandler = (e) => {
+        if (e.key === 'Escape') {
+            close();
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    document.addEventListener('keydown', escHandler);
+
+    // 关闭按钮
+    const closeBtn = dialog.querySelector('.close-dialog-btn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', close);
+    }
+
+    return { dialog, close };
+}
+
+/**
+ * 简单的 Markdown 渲染器
+ * @param {string} markdown - Markdown 文本
+ * @returns {string} HTML 字符串
+ */
+export function renderMarkdown(markdown) {
+    if (!markdown) return '';
+
+    let html = markdown
+        // 转义 HTML 特殊字符
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        // 标题
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        // 粗体
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        // 斜体
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // 无序列表
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/^• (.+)$/gm, '<li>$1</li>')
+        // 有序列表
+        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        // 代码块
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // 换行
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+
+    // 包装列表项
+    html = html.replace(/(<li>.*?<\/li>)+/gs, '<ul>$&</ul>');
+
+    // 清理多余的 ul 标签
+    html = html.replace(/<\/ul>\s*<ul>/g, '');
+
+    return `<p>${html}</p>`;
+}
+

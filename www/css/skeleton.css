@@ -1,0 +1,99 @@
+/* ========================================
+   骨架屏样式 (Skeleton Screen)
+   ======================================== */
+
+.skeleton-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0;
+}
+
+.skeleton-item {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    min-height: 65px;
+    box-shadow: var(--card-shadow);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow: hidden;
+}
+
+.skeleton-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.skeleton-line {
+    height: 14px;
+    background: linear-gradient(90deg,
+            var(--skeleton-base) 25%,
+            var(--skeleton-shine) 50%,
+            var(--skeleton-base) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite ease-in-out;
+    border-radius: 4px;
+}
+
+.skeleton-line.title {
+    height: 16px;
+    width: 80%;
+}
+
+.skeleton-line.meta {
+    height: 10px;
+    width: 50%;
+}
+
+.skeleton-thumbnail {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(90deg,
+            var(--skeleton-base) 25%,
+            var(--skeleton-shine) 50%,
+            var(--skeleton-base) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite ease-in-out;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* 骨架屏颜色变量 */
+:root {
+    --skeleton-base: rgba(0, 0, 0, 0.06);
+    --skeleton-shine: rgba(0, 0, 0, 0.1);
+}
+
+/* 暗色模式 - 用户显式选择 */
+[data-color-scheme="dark"] {
+    --skeleton-base: rgba(255, 255, 255, 0.06);
+    --skeleton-shine: rgba(255, 255, 255, 0.12);
+}
+
+/* 暗色模式 - 跟随系统 */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-color-scheme="light"]) {
+        --skeleton-base: rgba(255, 255, 255, 0.06);
+        --skeleton-shine: rgba(255, 255, 255, 0.12);
+    }
+}
+
+/* 带图片的骨架项样式 */
+.skeleton-item.with-thumbnail .skeleton-thumbnail {
+    width: 55px;
+    height: 55px;
+}

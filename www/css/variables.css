@@ -1,0 +1,83 @@
+/* ========================================
+   CSS 变量定义
+   ======================================== */
+:root {
+    --bg-color: #f7f3ed;
+
+    --card-bg: rgba(255, 255, 255, 0.6);
+
+    --text-color: #2b2622;
+
+    --title-color: #151311;
+
+    --accent-color: #8b2c3b;
+
+    --meta-color: #6e665c;
+
+    --border-color: color-mix(in srgb, var(--bg-color), #000 4%);
+
+    --hover-bg: rgba(255, 255, 255, 0.8);
+
+    --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 1), inset 1px 0 0 0 rgba(255, 255, 255, 0.7);
+
+    --card-shadow-hover: 0 3px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 1), inset 1px 0 0 0 rgba(255, 255, 255, 0.8);
+
+    --radius: 18px;
+
+    --glass-blur: 16px;
+
+    --danger-color: #c0392b;
+
+}
+
+/* ========================================
+   主题配色方案
+   ======================================== */
+
+/* 森林主题 - 亮色 */
+[data-theme="forest"] {
+    --bg-color: #f2f4f2;
+    --card-bg: rgba(255, 255, 255, 0.6);
+    --text-color: #333b36;
+    --title-color: #1e2620;
+    --accent-color: #355F2E;
+    --meta-color: #6a756e;
+    --border-color: color-mix(in srgb, var(--bg-color), #000 4%);
+    --hover-bg: rgba(255, 255, 255, 0.8);
+}
+
+/* 海洋主题 - 亮色 */
+[data-theme="ocean"] {
+    --bg-color: #f2f4f6;
+    --card-bg: rgba(255, 255, 255, 0.6);
+    --text-color: #333a42;
+    --title-color: #1a2530;
+    --accent-color: #133E87;
+    --meta-color: #6a7580;
+    --border-color: color-mix(in srgb, var(--bg-color), #000 4%);
+    --hover-bg: rgba(255, 255, 255, 0.8);
+}
+
+/* 薰衣草主题 - 亮色 */
+[data-theme="lavender"] {
+    --bg-color: #f4f2f6;
+    --card-bg: rgba(255, 255, 255, 0.6);
+    --text-color: #38343e;
+    --title-color: #26222c;
+    --accent-color: #52357B;
+    --meta-color: #747080;
+    --border-color: color-mix(in srgb, var(--bg-color), #000 4%);
+    --hover-bg: rgba(255, 255, 255, 0.8);
+}
+
+/* 黑白主题 - 亮色 */
+[data-theme="mono"] {
+    --bg-color: #f5f5f5;
+    --card-bg: rgba(255, 255, 255, 0.8);
+    --text-color: #1a1a1a;
+    --title-color: #000000;
+    --accent-color: #444444;
+    --meta-color: #666666;
+    --border-color: color-mix(in srgb, var(--bg-color), #000 4%);
+    --hover-bg: rgba(255, 255, 255, 0.8);
+}

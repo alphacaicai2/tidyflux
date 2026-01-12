@@ -1,0 +1,34 @@
+# Stage 1: Build
+FROM node:18-alpine AS builder
+
+# 安装构建工具
+RUN apk add --no-cache bash && npm install -g esbuild
+
+WORKDIR /app
+
+# 复制源码
+COPY . .
+
+# 赋予脚本执行权限并运行构建
+RUN chmod +x build.sh && ./build.sh
+
+# Stage 2: Production
+FROM node:18-alpine
+
+WORKDIR /app
+
+# 从 builder 阶段复制构建产物
+COPY --from=builder /app/docker/dist /app
+
+# 进入 server 目录安装生产依赖
+WORKDIR /app/server
+RUN npm ci --production
+
+# 设置环境变量端口
+ENV PORT=8812
+
+# 暴露端口
+EXPOSE 8812
+
+# 启动命令
+CMD ["node", "src/index.js"]

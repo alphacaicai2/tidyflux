@@ -1,0 +1,293 @@
+import express from 'express';
+import { authenticateToken } from '../middleware/auth.js';
+import { extractThumbnailUrl, extractFirstImage, getThumbnailUrl } from '../utils.js';
+
+const router = express.Router();
+
+// Get articles
+router.get('/', authenticateToken, async (req, res) => {
+    try {
+        const {
+            page = 1,
+            limit = 50,
+            feed_id,
+            group_id,
+            unread_only,
+            favorites,
+
+            after_published_at,
+            after_id,
+            search
+        } = req.query;
+
+        let offset = (parseInt(page) - 1) * parseInt(limit);
+
+        // If using cursor-based pagination (only for 'after' / new articles), we reset offset
+        // For history scrolling ('before'), we stick to offset pagination to avoid skipping items with same timestamp.
+        if (after_published_at || after_id) {
+            offset = 0;
+        }
+
+        const params = {
+            limit,
+            offset,
+            order: 'published_at',
+            direction: 'desc'
+        };
+
+        if (feed_id) params.feed_id = feed_id;
+        if (group_id) params.category_id = group_id;
+        if (unread_only === '1' || unread_only === 'true') params.status = 'unread';
+        if (favorites === '1' || favorites === 'true') params.starred = 'true';
+        if (search) params.search = search;
+
+
+
+        if (after_published_at) {
+            params.after = Math.floor(new Date(after_published_at).getTime() / 1000);
+        }
+        if (after_id) {
+            params.after_entry_id = after_id;
+        }
+
+        const entriesData = await req.miniflux.getEntries(params);
+
+        // entriesData is { total: 123, entries: [...] }
+        const entries = entriesData.entries || [];
+
+        // Stabilize sort order: Miniflux might return indeterminate order for same-second timestamps.
+        // We enforce sorting by published_at DESC, then id DESC.
+        entries.sort((a, b) => {
+            const timeA = new Date(a.published_at).getTime();
+            const timeB = new Date(b.published_at).getTime();
+            if (timeA !== timeB) return timeB - timeA;
+            return b.id - a.id;
+        });
+        const total = entriesData.total;
+
+        const entryUrls = new Map();
+        const articles = entries.map(entry => {
+            // Try to find a thumbnail from enclosures or content
+            let thumbnail = null;
+            let rawImageUrl = null;
+            if (entry.enclosures && entry.enclosures.length > 0) {
+                const image = entry.enclosures.find(e => e.mime_type && e.mime_type.startsWith('image/'));
+                if (image) rawImageUrl = image.url;
+            }
+            if (!rawImageUrl) {
+                rawImageUrl = extractFirstImage(entry.content, '');
+            }
+
+            if (rawImageUrl) {
+                entryUrls.set(entry.id, rawImageUrl);
+                thumbnail = getThumbnailUrl(rawImageUrl);
+            }
+
+            return {
+                id: entry.id,
+                feed_id: entry.feed_id,
+                title: entry.title,
+                summary: '', // Miniflux doesn't give plain summary easily
+                content: entry.content,
+                url: entry.url,
+                author: entry.author,
+                published_at: entry.published_at,
+                thumbnail_url: thumbnail,
+                feed_title: entry.feed ? entry.feed.title : '',
+                is_read: entry.status === 'read' ? 1 : 0,
+                is_favorited: entry.starred ? 1 : 0
+            };
+        });
+
+        // 异步预热缩略图缓存
+
+
+        res.json({
+            articles,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                totalPages: Math.ceil(total / parseInt(limit)),
+                hasMore: offset + articles.length < total
+            }
+        });
+    } catch (error) {
+        console.error('Get articles error:', error);
+        res.status(500).json({ error: error.message || '获取文章失败' });
+    }
+});
+
+// Get single article
+router.get('/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const entry = await req.miniflux.getEntry(id);
+
+        // Determine thumbnail
+        let thumbnail = null;
+        if (entry.enclosures && entry.enclosures.length > 0) {
+            const image = entry.enclosures.find(e => e.mime_type && e.mime_type.startsWith('image/'));
+            if (image) thumbnail = image.url;
+        }
+        if (!thumbnail) {
+            thumbnail = extractThumbnailUrl(entry.content, '');
+        }
+
+        const article = {
+            id: entry.id,
+            feed_id: entry.feed_id,
+            title: entry.title,
+            summary: '',
+            content: entry.content,
+            url: entry.url,
+            author: entry.author,
+            published_at: entry.published_at,
+            thumbnail_url: thumbnail,
+            feed_title: entry.feed ? entry.feed.title : '',
+            is_read: entry.status === 'read' ? 1 : 0,
+            is_favorited: entry.starred ? 1 : 0
+        };
+
+        res.json(article);
+    } catch (error) {
+        console.error('Get article error:', error);
+        if (error.message.includes('404')) {
+            return res.status(404).json({ error: '文章不存在' });
+        }
+        res.status(500).json({ error: '获取文章失败' });
+    }
+});
+
+// Mark read
+router.post('/:id/read', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await req.miniflux.updateEntriesStatus(parseInt(id), 'read');
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Mark read error:', error);
+        res.status(500).json({ error: '标记失败' });
+    }
+});
+
+// Mark unread
+router.delete('/:id/read', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await req.miniflux.updateEntriesStatus(parseInt(id), 'unread');
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Mark unread error:', error);
+        res.status(500).json({ error: '标记失败' });
+    }
+});
+
+// Mark all read
+router.post('/mark-all-read', authenticateToken, async (req, res) => {
+    try {
+        const { feed_id, group_id } = req.body;
+        // Miniflux API: PUT /v1/feeds/{feedID}/mark-all-as-read
+        // Miniflux API: PUT /v1/categories/{categoryID}/mark-all-as-read
+        // Miniflux API: PUT /v1/entries/mark-all-as-read
+
+
+
+        if (feed_id) {
+            await req.miniflux.request(`/feeds/${feed_id}/mark-all-as-read`, { method: 'PUT' });
+        } else if (group_id) {
+            await req.miniflux.request(`/categories/${group_id}/mark-all-as-read`, { method: 'PUT' });
+        } else {
+            // Mark all entries as read for the current user
+            // Endpoint: /v1/users/{userID}/mark-all-as-read
+            const me = await req.miniflux.me();
+            await req.miniflux.request(`/users/${me.id}/mark-all-as-read`, { method: 'PUT' });
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Mark all read error:', error);
+        res.status(500).json({ error: '标记失败' });
+    }
+});
+
+// Favorite
+router.post('/:id/favorite', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await req.miniflux.toggleBookmark(id);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Favorite error:', error);
+        res.status(500).json({ error: '收藏失败' });
+    }
+});
+
+
+router.delete('/:id/favorite', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        // To be safe we set it explicitly instead of toggle
+        await req.miniflux.updateEntry(id, { starred: false });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Unfavorite error:', error);
+        res.status(500).json({ error: '取消收藏失败' });
+    }
+});
+
+// Fetch article content (Readability mode)
+// PUT /api/articles/:id/fetch-content
+// Note: We keep frontend interface as PUT as it modifies state, but backend calls Miniflux's GET endpoint
+router.put('/:id/fetch-content', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        // Miniflux API returns { content: "..." }
+        const contentData = await req.miniflux.fetchEntryContent(id);
+
+
+        const entry = await req.miniflux.getEntry(id);
+
+        // Override content with the fetched version
+        if (contentData && contentData.content) {
+            entry.content = contentData.content;
+        }
+
+        // Return the updated article after fetching content
+        let thumbnail = null;
+        if (entry.enclosures && entry.enclosures.length > 0) {
+            const image = entry.enclosures.find(e => e.mime_type && e.mime_type.startsWith('image/'));
+            if (image) thumbnail = image.url;
+        }
+        if (!thumbnail) {
+            thumbnail = extractThumbnailUrl(entry.content, '');
+        }
+
+        const article = {
+            id: entry.id,
+            feed_id: entry.feed_id,
+            title: entry.title,
+            summary: '',
+            content: entry.content,
+            url: entry.url,
+            author: entry.author,
+            published_at: entry.published_at,
+            thumbnail_url: thumbnail,
+            feed_title: entry.feed ? entry.feed.title : '',
+            is_read: entry.status === 'read' ? 1 : 0,
+            is_favorited: entry.starred ? 1 : 0
+        };
+
+        res.json(article);
+    } catch (error) {
+        console.error('Fetch content error:', error);
+        console.error('Error details:', error.message);
+        if (error.message.includes('404')) {
+            console.error('Miniflux returned 404 for fetch-content. Endpoint might not exist or entry ID is wrong.');
+            return res.status(404).json({ error: '文章不存在' });
+        }
+        res.status(500).json({ error: '获取全文失败' });
+    }
+});
+
+export default router;

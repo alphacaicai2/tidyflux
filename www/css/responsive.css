@@ -1,0 +1,24 @@
+/* ========================================
+   响应式设计 - 桌面端
+   ======================================== */
+@media (min-width: 801px) {
+    body.article-view-active .app-container {
+        padding-bottom: 6px;
+    }
+
+    .article-content {
+        font-size: 1.0625em;
+    }
+
+    .article-list-item a {
+        transition: color 0.2s ease;
+    }
+
+    .article-list-item a:hover {
+        transform: none;
+    }
+
+    #article-back-btn {
+        display: none;
+    }
+}

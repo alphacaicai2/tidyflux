@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  miniflux:
+    image: miniflux/miniflux:latest
+    container_name: miniflux
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      - RUN_MIGRATIONS=1
+      - CREATE_ADMIN=1
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin # CHANGE THIS: Set a secure password for your Miniflux admin account
+      - DATABASE_URL=postgres://miniflux:secret@db/miniflux?sslmode=disable
+      - POLLING_FREQUENCY=60
+    restart: unless-stopped
+
+  db:
+    image: postgres:18
+    container_name: miniflux-db
+    environment:
+      - POSTGRES_USER=miniflux
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=miniflux
+    volumes:
+      - miniflux_db:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "miniflux" ]
+      interval: 10s
+      start_period: 30s
+    restart: unless-stopped
+
+  tidyflux:
+    image: pehzerov/tidyflux:latest
+    container_name: tidyflux
+    ports:
+      - "8812:8812"
+    depends_on:
+      miniflux:
+        condition: service_started
+    environment:
+      - PORT=8812
+      - TZ=Asia/Shanghai
+      # Auto-connect to the local Miniflux instance
+      - MINIFLUX_URL=http://miniflux:8080
+      - MINIFLUX_USERNAME=admin
+      - MINIFLUX_PASSWORD=admin # CHANGE THIS: Must match the ADMIN_PASSWORD set above
+    volumes:
+      - tidyflux_data:/app/server/data
+    restart: unless-stopped
+
+volumes:
+  miniflux_db:
+  tidyflux_data:

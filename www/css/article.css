@@ -1,0 +1,211 @@
+/* ========================================
+   文章内容样式
+   ======================================== */
+.article-content {
+    font-size: 1.1em;
+    text-align: justify;
+    animation: fadeIn 0.4s ease-out both;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-break: normal;
+}
+
+.article-content h1,
+.article-header {
+    text-align: left;
+}
+
+.article-content ruby {
+    display: inline;
+}
+
+.article-content p {
+    margin-top: 0;
+    margin-bottom: 1em;
+}
+
+.article-content a {
+    color: var(--accent-color);
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+    transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+.article-content a:hover {
+    color: var(--title-color);
+    text-decoration-color: var(--title-color);
+}
+
+.article-content h2,
+.article-content h3,
+.article-content h4 {
+    color: var(--title-color);
+    font-weight: 700;
+    margin: 1.2em 0 0.5em;
+    line-height: 1.35;
+    font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', 'FangSong', Georgia, serif;
+}
+
+.article-content h2 {
+    font-size: 1.3em;
+}
+
+.article-content h3 {
+    font-size: 1.2em;
+}
+
+.article-content h4 {
+    font-size: 1.1em;
+}
+
+.article-content ul {
+    padding-left: 20px;
+}
+
+.article-content img:not(.favicon) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    display: block;
+    margin: 1em auto;
+    border: none;
+    box-shadow: none;
+}
+
+.article-content video,
+.article-content iframe,
+.article-content embed,
+.article-content object {
+    max-width: 100%;
+    margin: 1em auto;
+    display: block;
+    border-radius: 12px;
+}
+
+.article-content blockquote {
+    padding: 1em 1em;
+    margin: 1.2em 0;
+    color: #61584e;
+    background-color: color-mix(in srgb, var(--accent-color), transparent 96%);
+    border-left: 4px solid var(--accent-color);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-style: normal;
+}
+
+.article-content blockquote p {
+    margin: 0;
+}
+
+.article-content hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1em 0;
+    opacity: 0.9;
+}
+
+/* ========================================
+   代码块、数学公式、表格通用容器样式
+   ======================================== */
+.article-content pre,
+.article-content math,
+.article-content table {
+    display: block;
+    background-color: var(--hover-bg);
+    border-radius: var(--radius);
+    padding: 1em;
+    margin: 1em 0;
+    overflow-x: auto;
+    max-width: 100%;
+    border: 1px solid var(--border-color);
+    -webkit-overflow-scrolling: touch;
+}
+
+.article-content pre {
+    white-space: pre;
+    word-wrap: normal;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+.article-content math {
+    font-family: 'Latin Modern Math', 'Cambria Math', serif;
+    font-size: 1.2em;
+}
+
+.article-content code {
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.9em;
+    background-color: var(--hover-bg);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    word-break: break-word;
+}
+
+.article-content pre code {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+    word-break: normal;
+}
+
+
+/* ========================================
+   Article Toolbar (Top Actions)
+   ======================================== */
+.article-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 0;
+}
+
+.article-toolbar-left,
+.article-toolbar-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.article-toolbar-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--accent-color);
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    width: 32px;
+    height: 32px;
+}
+
+#article-back-btn {
+    background: var(--card-bg);
+    padding: 0;
+    width: 34px;
+    height: 34px;
+    box-shadow: var(--card-shadow);
+}
+
+#article-back-btn:hover {
+    box-shadow: var(--card-shadow-hover);
+}
+
+.article-toolbar-btn:hover {
+    background-color: var(--hover-bg);
+    box-shadow: var(--card-shadow-hover);
+    color: var(--accent-color);
+}
+
+.article-toolbar-btn.active {
+    color: var(--accent-color);
+}
+
+.article-toolbar-btn.is-read {
+    color: var(--accent-color);
+}
