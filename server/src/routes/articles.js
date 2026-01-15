@@ -39,14 +39,16 @@ router.get('/', authenticateToken, async (req, res) => {
 
             after_published_at,
             after_id,
+            before_published_at,
+            before_id,
             search
         } = req.query;
 
         let offset = (parseInt(page) - 1) * parseInt(limit);
 
-        // If using cursor-based pagination (only for 'after' / new articles), we reset offset
-        // For history scrolling ('before'), we stick to offset pagination to avoid skipping items with same timestamp.
-        if (after_published_at || after_id) {
+        // If using cursor-based pagination, we reset offset
+        // Cursor pagination is more stable for lists that change (e.g., marking as read)
+        if (after_published_at || after_id || before_published_at || before_id) {
             offset = 0;
         }
 
@@ -64,12 +66,20 @@ router.get('/', authenticateToken, async (req, res) => {
         if (search) params.search = search;
 
 
-
+        // Cursor for fetching newer items (after)
         if (after_published_at) {
             params.after = Math.floor(new Date(after_published_at).getTime() / 1000);
         }
         if (after_id) {
             params.after_entry_id = after_id;
+        }
+
+        // Cursor for fetching older items (before) - used for "load more"
+        if (before_published_at) {
+            params.before = Math.floor(new Date(before_published_at).getTime() / 1000);
+        }
+        if (before_id) {
+            params.before_entry_id = before_id;
         }
 
         const entriesData = await req.miniflux.getEntries(params);

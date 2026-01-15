@@ -18,6 +18,7 @@ const ARTICLES_CONFIG = {
     SKELETON_COUNT: 12,                // 初始加载时的骨架屏数量
     SCROLL_END_DELAY: 1000,            // 判定滚动停止的延迟 (ms)
     SCROLL_READ_DELAY: 150,            // 滚动标记已读的防抖延迟 (ms)
+    SCROLL_READ_BATCH_DELAY: 500,      // 滚动标记已读的批量处理延迟 (ms)
     PRELOAD_THRESHOLD_PX: 800          // 触发下一页预加载的底部剩余高度
 };
 
@@ -47,6 +48,10 @@ export const ArticlesView = {
     nextPageCache: null,
     /** 是否正在预加载 */
     isPreloading: false,
+    /** 滚动标记已读待处理 ID 集合 */
+    _scrollReadPendingIds: new Set(),
+    /** 滚动标记已读批量处理定时器 */
+    _scrollReadBatchTimer: null,
 
 
     /**
@@ -515,12 +520,27 @@ export const ArticlesView = {
             if (AppState.isSearchMode && AppState.searchQuery) {
                 result = await FeedManager.searchArticles(AppState.searchQuery, nextPage);
             } else {
+                // 构建游标：在 unreadOnly 模式下，使用最后一篇文章的信息作为游标
+                // 这样即使前面的文章被标记为已读，也不会影响下一页的加载
+                let cursor = null;
+                if (AppState.showUnreadOnly && AppState.articles.length > 0) {
+                    const lastArticle = AppState.articles[AppState.articles.length - 1];
+                    if (lastArticle && lastArticle.published_at && lastArticle.id) {
+                        cursor = {
+                            publishedAt: lastArticle.published_at,
+                            id: lastArticle.id,
+                            isAfter: false  // false 表示 "before"，即获取更早的文章
+                        };
+                    }
+                }
+
                 result = await FeedManager.getArticles({
                     page: nextPage,
                     feedId: AppState.currentFeedId,
                     groupId: AppState.currentGroupId,
                     unreadOnly: AppState.showUnreadOnly,
-                    favorites: AppState.viewingFavorites
+                    favorites: AppState.viewingFavorites,
+                    cursor
                 });
             }
 
@@ -578,12 +598,26 @@ export const ArticlesView = {
             if (AppState.isSearchMode && AppState.searchQuery) {
                 result = await FeedManager.searchArticles(AppState.searchQuery, nextPage);
             } else {
+                // 构建游标：在 unreadOnly 模式下，使用最后一篇文章的信息作为游标
+                let cursor = null;
+                if (AppState.showUnreadOnly && AppState.articles.length > 0) {
+                    const lastArticle = AppState.articles[AppState.articles.length - 1];
+                    if (lastArticle && lastArticle.published_at && lastArticle.id) {
+                        cursor = {
+                            publishedAt: lastArticle.published_at,
+                            id: lastArticle.id,
+                            isAfter: false  // false 表示 "before"，即获取更早的文章
+                        };
+                    }
+                }
+
                 result = await FeedManager.getArticles({
                     page: nextPage,
                     feedId: AppState.currentFeedId,
                     groupId: AppState.currentGroupId,
                     unreadOnly: AppState.showUnreadOnly,
-                    favorites: AppState.viewingFavorites
+                    favorites: AppState.viewingFavorites,
+                    cursor
                 });
             }
 
@@ -762,15 +796,20 @@ export const ArticlesView = {
             clearTimeout(this.scrollEndTimer);
         }
 
+        const scrollTop = list.scrollTop;
+        const scrollHeight = list.scrollHeight;
+        const clientHeight = list.clientHeight;
+
         // 设置滚动结束检测（统一使用 1 秒，确保惯性滚动结束后再允许插入新文章）
         this.scrollEndTimer = setTimeout(() => {
             this.isScrolling = false;
             this.scrollEndTimer = null;
-        }, ARTICLES_CONFIG.SCROLL_END_DELAY);
 
-        const scrollTop = list.scrollTop;
-        const scrollHeight = list.scrollHeight;
-        const clientHeight = list.clientHeight;
+            // 滚动停止时，检查普通列表是否到达底部
+            if (!this.useVirtualScroll) {
+                this.checkScrollReadAtBottomForNormalList(list);
+            }
+        }, ARTICLES_CONFIG.SCROLL_END_DELAY);
 
         // 控制回到顶部按钮显示
         if (DOMElements.scrollToTopBtn) {
@@ -825,22 +864,54 @@ export const ArticlesView = {
     },
 
     /**
+     * 检查普通列表是否到达底部，如果是则标记可见区域内的未读项目
+     * 用于处理最后一屏无法通过"滚动经过"检测的问题
+     * @param {HTMLElement} list - 列表容器
+     */
+    checkScrollReadAtBottomForNormalList(list) {
+        if (!AppState.preferences?.scroll_mark_as_read) return;
+
+        const scrollTop = list.scrollTop;
+        const scrollHeight = list.scrollHeight;
+        const clientHeight = list.clientHeight;
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+        // 只在接近底部（距离底部小于 50px）时处理
+        if (distanceToBottom > 50) return;
+
+        const listRect = list.getBoundingClientRect();
+        const unreadEls = list.querySelectorAll('.article-item.unread');
+        const visibleItems = [];
+
+        unreadEls.forEach(el => {
+            const elRect = el.getBoundingClientRect();
+            // 检查元素是否在视口内（至少部分可见）
+            if (elRect.bottom > listRect.top && elRect.top < listRect.bottom) {
+                const id = el.dataset.id;
+                const article = AppState.articles.find(a => a.id == id);
+                if (article) visibleItems.push(article);
+            }
+        });
+
+        if (visibleItems.length > 0) {
+            this.handleScrollMarkAsRead(visibleItems);
+        }
+    },
+
+    /**
      * 处理滚动标记已读
+     * 使用批量收集 + 防抖机制，避免快速滚动时触发大量 API 请求
      * @param {Array} items - 滚动经过的文章项
      */
-    async handleScrollMarkAsRead(items) {
+    handleScrollMarkAsRead(items) {
         // 检查设置是否开启
         if (!AppState.preferences?.scroll_mark_as_read) return;
 
         // 过滤掉已经标记为已读的
         const unreadItems = items.filter(item => !item.is_read);
-
         if (unreadItems.length === 0) return;
 
-        // 标记已读 ID 列表
-        const ids = unreadItems.map(item => item.id);
-
-        // 乐观更新 UI
+        // 乐观更新 UI 并收集 ID
         unreadItems.forEach(item => {
             item.is_read = true;
 
@@ -852,12 +923,38 @@ export const ArticlesView = {
                 const el = DOMElements.articlesList.querySelector(`.article-item[data-id="${item.id}"]`);
                 if (el) el.classList.remove('unread');
             }
+
+            // 收集待处理的 ID
+            this._scrollReadPendingIds.add(item.id);
         });
+
+        // 防抖：延迟批量处理
+        if (this._scrollReadBatchTimer) {
+            clearTimeout(this._scrollReadBatchTimer);
+        }
+
+        this._scrollReadBatchTimer = setTimeout(() => {
+            this._flushScrollReadBatch();
+        }, ARTICLES_CONFIG.SCROLL_READ_BATCH_DELAY);
+    },
+
+    /**
+     * 批量处理滚动标记已读
+     * @private
+     */
+    async _flushScrollReadBatch() {
+        this._scrollReadBatchTimer = null;
+
+        if (this._scrollReadPendingIds.size === 0) return;
+
+        const ids = Array.from(this._scrollReadPendingIds);
+        this._scrollReadPendingIds.clear();
 
         try {
             // Use batch API instead of N+1 individual calls
             await FeedManager.markAsReadBatch(ids);
-            await this.viewManager.refreshFeedCounts();
+            // 刷新计数（使用 ViewManager 的防抖版本）
+            this.viewManager.debouncedRefreshFeedCounts();
         } catch (err) {
             console.error('Scroll mark as read failed:', err);
         }

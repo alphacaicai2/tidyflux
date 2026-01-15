@@ -34,6 +34,7 @@
 - 🌐 Bilingual interface (Chinese/English)
 - 📥 Installable to desktop (PWA)
 - 🔄 Personalized settings and AI configuration cloud storage, automatic synchronization across multiple devices
+- 🎧 Built-in podcast player, supporting background playback and progress control
 - 🤖 **AI Enhanced Features**:
     - 📝 **Article Summary**: Extract core viewpoints and summaries of articles with one click
     - 🌍 **Full Text Translation**: Support full text translation in multiple languages

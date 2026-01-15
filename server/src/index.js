@@ -57,6 +57,8 @@ async function startServer() {
         app.use('/api/digest', digestRoutes);
         app.use('/api/ai', aiRoutes);
 
+
+
         // Health check
         app.get('/api/health', (req, res) => {
             res.json({ status: 'ok', mode: 'miniflux-adapter' });

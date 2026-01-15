@@ -425,6 +425,11 @@ export const ViewManager = {
         await ArticlesView.checkForNewArticles();
     },
 
+    /** 防抖刷新计数的定时器 */
+    _refreshCountsTimer: null,
+    /** 防抖延迟 (ms) */
+    _refreshCountsDelay: 1000,
+
     async refreshFeedCounts() {
         try {
             // Fetch Feeds, Groups and Digest Counts
@@ -442,6 +447,20 @@ export const ViewManager = {
         } catch (err) {
             console.debug('Refresh feed counts failed', err);
         }
+    },
+
+    /**
+     * 防抖版本的 refreshFeedCounts
+     * 用于滚动标记已读等高频场景，合并多次调用为一次请求
+     */
+    debouncedRefreshFeedCounts() {
+        if (this._refreshCountsTimer) {
+            clearTimeout(this._refreshCountsTimer);
+        }
+        this._refreshCountsTimer = setTimeout(() => {
+            this._refreshCountsTimer = null;
+            this.refreshFeedCounts();
+        }, this._refreshCountsDelay);
     },
 
     updateFeedUnreadCounts(digestsData = null) {

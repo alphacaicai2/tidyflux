@@ -502,7 +502,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    max-width: 680px;
+    max-width: 100%;
     margin: 0 auto;
     position: relative;
 }
@@ -639,7 +639,7 @@
         right: auto;
         bottom: 4px;
         width: calc(100% - 24px);
-        max-width: 680px;
+        max-width: 800px;
         transform: translateX(-50%);
         border-radius: var(--radius);
     }

@@ -44,6 +44,8 @@ export class VirtualList {
 
         // 滚动已读追踪
         this._lastScrollTopForRead = 0;
+        this._lastReportedReadIndex = -1;  // 上次报告滚动已读的最大索引
+        this._scrollEndTimer = null;  // 滚动停止检测定时器
 
         this.init();
     }
@@ -152,12 +154,60 @@ export class VirtualList {
                 this.checkScrolledPastItems();
             }
             this._lastScrollTopForRead = this.scrollTop;
+
+            // 滚动停止检测（防抖）：用于处理最后一屏的已读标记
+            if (this._scrollEndTimer) {
+                clearTimeout(this._scrollEndTimer);
+            }
+            this._scrollEndTimer = setTimeout(() => {
+                this._scrollEndTimer = null;
+                this.checkVisibleItemsAtBottom();
+            }, 300);
         });
     }
 
     /**
+     * 检查是否到达底部，如果是则标记可见区域内的未读项目
+     * 用于处理最后一屏无法通过"滚动经过"检测的问题
+     */
+    checkVisibleItemsAtBottom() {
+        if (!this.onScrolledPast || this.items.length === 0) return;
+
+        // 检查是否接近底部（距离底部小于 50px）
+        const scrollHeight = this.container.scrollHeight;
+        const scrollTop = this.container.scrollTop;
+        const clientHeight = this.container.clientHeight;
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+        if (distanceToBottom > 50) return;  // 未到达底部，不处理
+
+        // 找到可见区域内的未读项目
+        const viewportTop = this.scrollTop;
+        const viewportBottom = this.scrollTop + this.containerHeight;
+        const visibleUnreadItems = [];
+
+        for (let i = 0; i < this.items.length; i++) {
+            const item = this.items[i];
+            if (item.is_read) continue;
+
+            const itemTop = this.itemPositions[i] || 0;
+            const itemHeight = this.itemHeights.get(String(item.id)) || this.estimatedItemHeight;
+            const itemBottom = itemTop + itemHeight;
+
+            // 检查项目是否在视口内（至少部分可见）
+            if (itemBottom > viewportTop && itemTop < viewportBottom) {
+                visibleUnreadItems.push(item);
+            }
+        }
+
+        if (visibleUnreadItems.length > 0) {
+            this.onScrolledPast(visibleUnreadItems);
+        }
+    }
+
+    /**
      * 检查哪些项目已经滚动经过视口（用于滚动标记已读）
-     * 只返回完全滚动过视口顶部的未读项目
+     * 只返回完全滚动过视口顶部的未读项目，且避免重复报告
      */
     checkScrolledPastItems() {
         if (!this.onScrolledPast || this.items.length === 0) return;
@@ -165,17 +215,25 @@ export class VirtualList {
         // 找到当前视口顶部的项目索引
         const currentTopIndex = this.findStartIndex(this.scrollTop);
 
-        // 收集所有已经滚动过视口的未读项目
+        // 如果当前顶部索引没有前进，不需要检查
+        if (currentTopIndex <= this._lastReportedReadIndex) return;
+
+        // 收集从上次报告位置到当前顶部之间的未读项目
         const scrolledPastItems = [];
-        for (let i = 0; i < currentTopIndex; i++) {
+        for (let i = this._lastReportedReadIndex + 1; i < currentTopIndex; i++) {
             const item = this.items[i];
+            if (!item) continue;
+
             // 检查项目是否在视口上方（已滚动过）且未读
             const itemBottom = (this.itemPositions[i] || 0) +
-                (this.itemHeights.get(item.id) || this.estimatedItemHeight);
+                (this.itemHeights.get(String(item.id)) || this.estimatedItemHeight);
             if (itemBottom < this.scrollTop && !item.is_read) {
                 scrolledPastItems.push(item);
             }
         }
+
+        // 更新已报告的索引
+        this._lastReportedReadIndex = currentTopIndex - 1;
 
         if (scrolledPastItems.length > 0) {
             this.onScrolledPast(scrolledPastItems);
@@ -261,6 +319,7 @@ export class VirtualList {
         this.endIndex = -1;
         this._lastTopSpace = -1;
         this._lastBottomSpace = -1;
+        this._lastReportedReadIndex = -1;  // 重置滚动已读追踪
 
         this.render();
     }
@@ -603,6 +662,9 @@ export class VirtualList {
         }
         if (this.scrollRAF) {
             cancelAnimationFrame(this.scrollRAF);
+        }
+        if (this._scrollEndTimer) {
+            clearTimeout(this._scrollEndTimer);
         }
         if (this.scrollHandler && this.container) {
             this.container.removeEventListener('scroll', this.scrollHandler);
