@@ -70,7 +70,9 @@ router.post('/chat', authenticateToken, async (req, res) => {
             } catch (e) {
                 // ignore json parse error
             }
-            return res.status(response.status).json({ error: errorMsg });
+            // 不要直接透传上游 AI 的 401/403，否则前端会误判为登录过期
+            const statusCode = (response.status === 401 || response.status === 403) ? 502 : response.status;
+            return res.status(statusCode).json({ error: errorMsg });
         }
 
         if (stream) {
@@ -163,7 +165,9 @@ router.post('/test', authenticateToken, async (req, res) => {
             } catch (e) {
                 // ignore
             }
-            return res.status(response.status).json({ success: false, error: errorMsg });
+            // 不要直接透传上游 AI 的 401/403，否则前端会误判为登录过期
+            const statusCode = (response.status === 401 || response.status === 403) ? 502 : response.status;
+            return res.status(statusCode).json({ success: false, error: errorMsg });
         }
 
         const data = await response.json();
