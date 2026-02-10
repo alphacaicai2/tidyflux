@@ -47,7 +47,7 @@ async function initApp() {
 
     Router.handleInitialHash();
 
-    setupEventListeners();
+    setupEventListeners(ViewManager);
 }
 
 /**

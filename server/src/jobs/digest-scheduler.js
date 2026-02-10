@@ -82,20 +82,62 @@ export const DigestScheduler = {
                         hours: task.hours || 24,
                         targetLang: targetLang,
                         aiConfig: aiConfig,
-                        prompt: aiConfig.digestPrompt
+                        prompt: aiConfig.digestPrompt,
+                        unreadOnly: task.unreadOnly !== false // default true
                     };
 
                     if (task.scope === 'feed') {
                         digestOptions.feedId = task.feedId || task.scopeId;
+                        // Validate feed still exists
+                        try {
+                            await minifluxClient.getFeed(parseInt(digestOptions.feedId));
+                        } catch (e) {
+                            console.warn(`Skipping digest for user ${userId}: feed ${digestOptions.feedId} no longer exists. Disabling task.`);
+                            task.enabled = false;
+                            await PreferenceStore.save(userId, prefs);
+                            continue;
+                        }
                     } else if (task.scope === 'group') {
                         digestOptions.groupId = task.groupId || task.scopeId;
+                        // Validate group still exists
+                        try {
+                            const categories = await minifluxClient.getCategories();
+                            const exists = categories.some(c => c.id === parseInt(digestOptions.groupId));
+                            if (!exists) throw new Error('not found');
+                        } catch (e) {
+                            console.warn(`Skipping digest for user ${userId}: group ${digestOptions.groupId} no longer exists. Disabling task.`);
+                            task.enabled = false;
+                            await PreferenceStore.save(userId, prefs);
+                            continue;
+                        }
                     }
 
                     // 异步执行生成任务，不阻塞调度循环
+                    const pushConfig = prefs.digest_push_config;
                     DigestService.generate(minifluxClient, userId, digestOptions)
-                        .then(result => {
+                        .then(async (result) => {
                             if (result.success) {
                                 console.log(`Digest generated for user ${userId} [Task: ${task.scope}]:`, result.digest.id);
+
+                                // Push notification (per-task enabled + global config)
+                                if (task.pushEnabled && pushConfig?.url) {
+                                    try {
+                                        const pushUrl = pushConfig.url;
+                                        const bodyTemplate = pushConfig.body || '{}';
+                                        const body = bodyTemplate
+                                            .replace(/\{\{title\}\}/g, result.digest.title || '')
+                                            .replace(/\{\{digest_content\}\}/g, (result.digest.content || '').replace(/"/g, '\\"'));
+
+                                        const resp = await fetch(pushUrl, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: body
+                                        });
+                                        console.log(`Push notification sent for user ${userId} [POST ${pushUrl}]: ${resp.status}`);
+                                    } catch (pushErr) {
+                                        console.error(`Push notification failed for user ${userId}:`, pushErr.message);
+                                    }
+                                }
                             } else {
                                 console.error(`Digest generation failed for user ${userId} [Task: ${task.scope}]:`, result);
                             }

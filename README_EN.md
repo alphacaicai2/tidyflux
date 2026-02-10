@@ -38,7 +38,7 @@
 - 🤖 **AI Enhanced Features**:
     - 📝 **Article Summary**: Extract core viewpoints and summaries of articles with one click
     - 🌍 **Full Text Translation**: Support full text translation in multiple languages
-    - 📅 **Smart Digest**: Support manual or scheduled generation of daily content digests
+    - 📅 **Smart Digest**: Support manual or scheduled generation of daily content digests, with Webhook push notifications (Slack, Discord, Telegram, etc.)
     - ⚙️ **Custom AI Interface**: Support all OpenAI-compatible APIs
 
 ### Supported Operations

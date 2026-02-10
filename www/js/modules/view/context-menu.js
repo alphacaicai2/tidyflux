@@ -9,6 +9,7 @@ import { showToast, createContextMenu } from './utils.js';
 import { i18n } from '../i18n.js';
 import { Modal } from './components.js';
 import { Icons } from '../icons.js';
+import { Dialogs } from './dialogs.js';
 
 /**
  * 上下文菜单管理
@@ -150,7 +151,14 @@ export const ContextMenu = {
 
         let itemsHtml = '';
 
-        if (!isFavorites && !isDigests) {
+        if (isDigests) {
+            itemsHtml += `
+            <div class="context-menu-item" data-action="manage-scheduled-digests">
+                ${Icons.schedule}
+                ${i18n.t('digest.manage_scheduled')}
+            </div>
+`;
+        } else if (!isFavorites) {
             itemsHtml += `
             <div class="context-menu-item" data-action="manual-refresh">
                 ${Icons.miniflux}
@@ -313,6 +321,8 @@ export const ContextMenu = {
                 } finally {
                     isManualRefreshing = false;
                 }
+            } else if (action === 'manage-scheduled-digests') {
+                Dialogs.showDigestManagerDialog();
             } else if (action === 'generate-digest') {
                 if (AppState.currentFeedId) {
                     this.viewManager.generateDigestForFeed(AppState.currentFeedId);

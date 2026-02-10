@@ -254,7 +254,7 @@ export const ArticleContentView = {
     renderDigestContent(digest) {
 
 
-        // 工具栏 HTML（简化版，只有返回按钮）
+        // 工具栏 HTML（简报版，包含返回和删除按钮）
         const toolbarHTML = `
             <div class="article-toolbar">
                 <div class="article-toolbar-left">
@@ -262,7 +262,11 @@ export const ArticleContentView = {
                         ${Icons.arrow_back}
                     </button>
                 </div>
-
+                <div class="article-toolbar-right">
+                    <button class="article-toolbar-btn" id="digest-delete-btn" title="${i18n.t('digest.delete')}">
+                        ${Icons.delete}
+                    </button>
+                </div>
             </div>
         `;
 
@@ -296,7 +300,7 @@ export const ArticleContentView = {
 
         `;
 
-        this.bindDigestToolbarEvents();
+        this.bindDigestToolbarEvents(digest);
         this.updateNavButtons(digest.id);
     },
 
@@ -304,10 +308,11 @@ export const ArticleContentView = {
      * 绑定简报工具栏事件
      * @param {Object} digest - 简报对象
      */
-    bindDigestToolbarEvents() {
+    bindDigestToolbarEvents(digest) {
         const vm = this.viewManager;
 
         const backBtn = document.getElementById('article-back-btn');
+        const deleteBtn = document.getElementById('digest-delete-btn');
 
         // 返回按钮
         if (backBtn) {
@@ -332,7 +337,43 @@ export const ArticleContentView = {
             });
         }
 
+        // 删除按钮
+        if (deleteBtn && digest) {
+            deleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (!confirm(i18n.t('digest.confirm_delete'))) return;
 
+                try {
+                    const success = await FeedManager.deleteDigest(digest.id);
+                    if (success) {
+                        // 从列表中移除
+                        if (AppState.articles) {
+                            AppState.articles = AppState.articles.filter(a => a.id !== digest.id);
+                        }
+                        // 从 DOM 中移除
+                        const listItem = DOMElements.articlesList?.querySelector(`.article-item[data-id="${digest.id}"]`);
+                        if (listItem) listItem.remove();
+
+                        showToast(i18n.t('common.success'), 2000, false);
+
+                        // 导航回列表
+                        if (window.innerWidth <= 800) {
+                            vm.isProgrammaticNav = true;
+                            history.back();
+                        } else {
+                            // 清除内容面板
+                            DOMElements.articleContent.innerHTML = `<div class="empty-content"><p>${i18n.t('welcome')}</p></div>`;
+                            AppState.currentArticleId = null;
+                        }
+                    } else {
+                        showToast(i18n.t('digest.delete_failed'), 2000, true);
+                    }
+                } catch (err) {
+                    console.error('Delete digest error:', err);
+                    showToast(i18n.t('digest.delete_failed'), 2000, true);
+                }
+            });
+        }
     },
 
     /**

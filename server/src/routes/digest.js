@@ -306,4 +306,35 @@ router.get('/preview', authenticateToken, async (req, res) => {
     }
 });
 
+/**
+ * POST /api/digest/test-push
+ * 测试推送通知（通过后端代理，避免 CORS 问题）
+ */
+router.post('/test-push', authenticateToken, async (req, res) => {
+    try {
+        const { url, body } = req.body;
+        if (!url) {
+            return res.status(400).json({ error: 'URL is required' });
+        }
+
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body || '{}'
+        });
+
+        const responseText = await resp.text();
+        res.json({
+            status: resp.status,
+            ok: resp.ok,
+            response: responseText
+        });
+    } catch (error) {
+        console.error('Test push error:', error);
+        res.status(500).json({
+            error: error.message
+        });
+    }
+});
+
 export default router;

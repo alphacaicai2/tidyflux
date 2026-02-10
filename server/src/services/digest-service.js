@@ -29,23 +29,26 @@ function truncateByToken(text, maxTokens) {
     return text;
 }
 
-// 辅助函数：获取最近未读文章
+// 辅助函数：获取最近文章（可选仅未读）
 export async function getRecentUnreadArticles(miniflux, options) {
-    const { hours = 12, limit, feedId, groupId } = options;
+    const { hours = 12, limit, feedId, groupId, unreadOnly = true } = options;
 
     const afterDate = new Date();
     afterDate.setHours(afterDate.getHours() - hours);
     const afterTimestamp = Math.floor(afterDate.getTime() / 1000);
 
     const entriesOptions = {
-        status: 'unread',
         order: 'published_at',
         direction: 'desc',
         limit: limit || 500,
         after: afterTimestamp
     };
 
-    console.log(`[Digest Debug] Fetching articles with options: limit=${entriesOptions.limit}, after=${entriesOptions.after} (${hours} hours ago)`);
+    if (unreadOnly) {
+        entriesOptions.status = 'unread';
+    }
+
+    console.log(`[Digest Debug] Fetching articles with options: limit=${entriesOptions.limit}, after=${entriesOptions.after} (${hours} hours ago), unreadOnly=${unreadOnly}`);
 
     if (feedId) entriesOptions.feed_id = parseInt(feedId);
     if (groupId) entriesOptions.category_id = parseInt(groupId);
@@ -88,6 +91,7 @@ async function prepareArticlesForDigest(articles) {
                 index: i + batchIndex + 1,
                 title: article.title,
                 feedTitle: article.feed ? article.feed.title : '',
+                categoryName: article.feed?.category?.title || '',
                 publishedAt: article.published_at,
                 summary: truncateByToken(content, maxTokens),
                 url: article.url
@@ -128,7 +132,9 @@ function buildDigestPrompt(articles, options = {}) {
     const articlesList = articles.map(a =>
         `### ${a.index}. ${a.title}\n` +
         `- Source: ${a.feedTitle}\n` +
+        (a.categoryName ? `- Category: ${a.categoryName}\n` : '') +
         `- Date: ${a.publishedAt}\n` +
+        (a.url ? `- Link: ${a.url}\n` : '') +
         `- Summary: ${a.summary}\n`
     ).join('\n');
 
@@ -221,7 +227,8 @@ export const DigestService = {
             hours = 12,
             targetLang = 'Simplified Chinese',
             prompt: customPrompt,
-            aiConfig
+            aiConfig,
+            unreadOnly = true
         } = options;
 
         const isEn = targetLang && (targetLang.toLowerCase().includes('english') || targetLang.toLowerCase().includes('en'));
@@ -242,13 +249,13 @@ export const DigestService = {
             scopeName = category ? category.title : (isEn ? 'Group' : '分组');
         }
 
-        const fetchOptions = { hours, feedId, groupId };
+        const fetchOptions = { hours, feedId, groupId, unreadOnly };
         const articles = await getRecentUnreadArticles(minifluxClient, fetchOptions);
 
         if (articles.length === 0) {
             const noArticlesMsg = isEn
-                ? `No unread articles in the past ${hours} hours.`
-                : `在过去 ${hours} 小时内没有未读文章。`;
+                ? `No ${unreadOnly ? 'unread ' : ''}articles in the past ${hours} hours.`
+                : `在过去 ${hours} 小时内没有${unreadOnly ? '未读' : ''}文章。`;
             return {
                 success: true,
                 digest: {

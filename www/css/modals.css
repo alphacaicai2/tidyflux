@@ -634,6 +634,37 @@ input:checked+.slider:before {
     font-weight: bold;
 }
 
+.custom-select-group-label {
+    padding: 10px 12px 6px;
+    font-size: 0.78em;
+    font-weight: 700;
+    color: var(--meta-color);
+    letter-spacing: 0.03em;
+    pointer-events: none;
+    user-select: none;
+    position: relative;
+    margin-top: 6px;
+}
+
+.custom-select-group-label::before {
+    content: '';
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 8px;
+    right: 8px;
+    height: 1px;
+    background: var(--border-color);
+}
+
+.custom-select-group-label:first-child {
+    margin-top: 0;
+}
+
+.custom-select-group-label:first-child::before {
+    display: none;
+}
+
 /* ========================================
    Dark Mode Specific Overrides
    ======================================== */

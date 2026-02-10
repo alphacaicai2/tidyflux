@@ -247,20 +247,27 @@ export class CustomSelect {
     refresh() {
         // Clear options
         this.optionsList.innerHTML = '';
-        const options = Array.from(this.nativeSelect.options);
 
-        options.forEach(opt => {
+        const renderOption = (opt) => {
             const el = document.createElement('div');
             el.className = 'custom-select-option';
             if (opt.selected) el.classList.add('selected');
             el.textContent = opt.textContent;
             el.dataset.value = opt.value;
-
-            el.textContent = opt.textContent;
-            el.dataset.value = opt.value;
-            // Event listener removed in favor of delegation
-
             this.optionsList.appendChild(el);
+        };
+
+        // Walk through top-level children to preserve optgroup structure
+        Array.from(this.nativeSelect.children).forEach(child => {
+            if (child.tagName === 'OPTGROUP') {
+                const label = document.createElement('div');
+                label.className = 'custom-select-group-label';
+                label.textContent = child.label;
+                this.optionsList.appendChild(label);
+                Array.from(child.children).forEach(opt => renderOption(opt));
+            } else if (child.tagName === 'OPTION') {
+                renderOption(child);
+            }
         });
 
         this.refreshTrigger();

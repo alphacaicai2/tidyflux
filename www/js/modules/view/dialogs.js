@@ -893,18 +893,45 @@ export const Dialogs = {
         const { feedId, groupId } = context;
         let scope = 'all';
         let scopeId = null;
-        let title = i18n.t('nav.all');
 
         if (groupId) {
             scope = 'group';
             scopeId = groupId;
-            const group = AppState.groups?.find(g => g.id == groupId);
-            title = group ? group.name : 'Group';
         } else if (feedId) {
             scope = 'feed';
             scopeId = feedId;
-            const feed = AppState.feeds?.find(f => f.id == feedId);
-            title = feed ? feed.title : 'Feed';
+        }
+
+        // Build scope options
+        const groups = AppState.groups || [];
+        const feeds = AppState.feeds || [];
+        const initialScopeValue = scope === 'all' ? 'all' : `${scope}_${scopeId}`;
+
+        let scopeOptionsHtml = `<option value="all">${i18n.t('nav.all')}</option>`;
+
+        // Categories group
+        if (groups.length > 0) {
+            scopeOptionsHtml += `<optgroup label="${i18n.t('nav.categories')}">`;
+            groups.forEach(g => {
+                scopeOptionsHtml += `<option value="group_${g.id}">${g.name}</option>`;
+            });
+            scopeOptionsHtml += `</optgroup>`;
+        }
+
+        // Feeds group
+        if (feeds.length > 0) {
+            scopeOptionsHtml += `<optgroup label="${i18n.t('nav.feeds')}">`;
+            groups.forEach(g => {
+                const groupFeeds = feeds.filter(f => f.category?.id == g.id);
+                groupFeeds.forEach(f => {
+                    scopeOptionsHtml += `<option value="feed_${f.id}">${f.title}</option>`;
+                });
+            });
+            const ungroupedFeeds = feeds.filter(f => !f.category?.id || !groups.find(g => g.id == f.category?.id));
+            ungroupedFeeds.forEach(f => {
+                scopeOptionsHtml += `<option value="feed_${f.id}">${f.title}</option>`;
+            });
+            scopeOptionsHtml += `</optgroup>`;
         }
 
         const { dialog, close } = createDialog('settings-dialog', `
@@ -913,9 +940,13 @@ export const Dialogs = {
                     ${Icons.close}
                 </button>
                 <h3>${i18n.t('ai.scheduled_digest')}</h3>
-                <p style="color: var(--meta-color); font-size: 0.9em; margin-bottom: 24px;">
-                    ${i18n.t('ai.digest_target')}: <strong style="color: var(--text-primary);">${title}</strong>
-                </p>
+
+                <div style="margin-bottom: 20px;">
+                    <div class="settings-item-label" style="margin-bottom: 8px;">${i18n.t('ai.digest_target')}</div>
+                    <select id="schedule-scope-select" class="dialog-select">
+                        ${scopeOptionsHtml}
+                    </select>
+                </div>
 
                 <div class="schedule-loader" style="text-align: center; padding: 20px;">
                     ${i18n.t('app.loading')}
@@ -932,6 +963,8 @@ export const Dialogs = {
                             </label>
                         </div>
                     </div>
+
+
 
                     <div id="schedule-config-area" style="transition: opacity 0.3s;">
                         <!-- Frequency Selection -->
@@ -969,6 +1002,18 @@ export const Dialogs = {
                         <div id="second-time-preview" style="text-align: center; margin-bottom: 20px; font-size: 0.9em; color: var(--accent-color); display: none;">
                             <!-- JS filled -->
                         </div>
+
+                        <!-- Include Read & Push Toggle -->
+                        <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="schedule-include-read" style="width: 16px; height: 16px; cursor: pointer;">
+                                <span>${i18n.t('settings.include_read')}</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="schedule-push-enabled" style="width: 16px; height: 16px; cursor: pointer;">
+                                <span>${i18n.t('settings.push_notification')}</span>
+                            </label>
+                        </div>
                     </div>
 
                     <div class="appearance-mode-group">
@@ -982,19 +1027,6 @@ export const Dialogs = {
                          </button>
                     </div>
                 </form>
-
-                <!-- Other Schedules View -->
-                <div id="other-schedules-view" style="display: none; height: 100%; flex-direction: column;">
-                     <div style="display: flex; align-items: center; margin-bottom: 16px;">
-                        <button type="button" id="back-to-main-btn" class="icon-btn" style="margin-right: 8px;">
-                            ${Icons.arrow_back}
-                        </button>
-                        <h4 style="margin: 0;">${i18n.t('settings.other_schedules')}</h4>
-                     </div>
-                     <div id="other-tasks-list" style="flex: 1; overflow-y: auto; padding-right: 4px;">
-                         <!-- Filled by JS -->
-                     </div>
-                </div>
             </div>
         `);
 
@@ -1003,6 +1035,8 @@ export const Dialogs = {
         const form = dialog.querySelector('#schedule-form');
         const enabledInput = dialog.querySelector('#schedule-enabled');
         const configArea = dialog.querySelector('#schedule-config-area');
+        const scopeSelect = dialog.querySelector('#schedule-scope-select');
+        const includeReadInput = dialog.querySelector('#schedule-include-read');
 
         const freqOnceBtn = dialog.querySelector('#freq-once');
         const freqTwiceBtn = dialog.querySelector('#freq-twice');
@@ -1011,12 +1045,23 @@ export const Dialogs = {
 
         const pickerContainer = dialog.querySelector('#custom-time-picker');
         const msgEl = dialog.querySelector('#schedule-msg');
-        const optionsDiv = dialog.querySelector('#schedule-options'); // Keeping ref for safety although structure changed
 
         const manageOthersBtn = dialog.querySelector('#manage-others-btn');
-        const otherSchedulesView = dialog.querySelector('#other-schedules-view');
-        const backToMainBtn = dialog.querySelector('#back-to-main-btn');
-        const otherTasksList = dialog.querySelector('#other-tasks-list');
+        const pushEnabledInput = dialog.querySelector('#schedule-push-enabled');
+
+        // Set initial scope value
+        scopeSelect.value = initialScopeValue;
+
+        // Init CustomSelects
+        const contentContainer = dialog.querySelector('.settings-dialog-content');
+        if (contentContainer) CustomSelect.replaceAll(contentContainer);
+
+        // Scope parser helper
+        const parseScope = (val) => {
+            if (val === 'all') return { scope: 'all', scopeId: null };
+            const [s, ...idParts] = val.split('_');
+            return { scope: s, scopeId: idParts.join('_') };
+        };
 
         // Logic state
         let allSchedules = [];
@@ -1025,125 +1070,18 @@ export const Dialogs = {
 
         // --- Helpers ---
 
-        const getScopeName = (tScope, tScopeId) => {
-            if (tScope === 'all') return i18n.t('nav.all');
-            if (tScope === 'group') {
-                const group = AppState.groups?.find(g => g.id == tScopeId);
-                return group ? group.name : `Group #${tScopeId}`;
-            }
-            if (tScope === 'feed') {
-                const feed = AppState.feeds?.find(f => f.id == tScopeId);
-                return feed ? feed.title : `Feed #${tScopeId}`;
-            }
-            return i18n.t('common.unnamed');
-        };
-
-        const renderOtherTasks = () => {
-            // Filter out tasks belonging to CURRENT scope
-            const isMatch = (t) => {
-                if (t.scope !== scope) return false;
-                if (t.scopeId == scopeId) return true;
-                return String(t.scopeId || '') === String(scopeId || '');
-            };
-            const others = allSchedules.filter(t => !isMatch(t));
-
-            if (others.length === 0) {
-                otherTasksList.innerHTML = `<div style="text-align: center; color: var(--meta-color); padding: 20px;">${i18n.t('settings.no_other_schedules')}</div>`;
-                return;
-            }
-
-
-
-            const grouped = {};
-            others.forEach(t => {
-                const key = `${t.scope}_${t.scopeId}`;
-                if (!grouped[key]) grouped[key] = [];
-                grouped[key].push(t);
-            });
-
-            otherTasksList.innerHTML = '';
-
-            Object.keys(grouped).forEach(key => {
-                const tasks = grouped[key];
-                const first = tasks[0];
-                const name = getScopeName(first.scope, first.scopeId);
-
-                const card = document.createElement('div');
-                card.style.cssText = `
-                    background: var(--card-bg);
-                    padding: 10px 16px;
-                    border-radius: var(--radius);
-                    margin-bottom: 8px;
-                    box-shadow: var(--card-shadow);
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    border: none;
-                `;
-
-                const timeStr = tasks.map(t => t.time).sort().join(' & ');
-                const freqLabel = tasks.length > 1 ? i18n.t('settings.twice_daily') : i18n.t('settings.once_daily');
-
-                card.innerHTML = `
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 700; font-size: 1em; color: var(--title-color); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</div>
-                        <div style="font-size: 0.85em; color: var(--meta-color);">
-                            ${freqLabel} • ${timeStr}
-                        </div>
-                    </div>
-                    <button class="icon-btn delete-task-btn" style="color: var(--danger-color); margin-left: 8px; width: 28px; height: 28px; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                        </svg>
-                    </button>
-                `;
-
-                // Delete logic
-                card.querySelector('.delete-task-btn').onclick = async () => {
-                    if (!await Modal.confirm(i18n.t('settings.confirm_delete_schedule'))) return;
-
-                    // Remove these tasks from allSchedules
-                    allSchedules = allSchedules.filter(t => !tasks.includes(t));
-
-                    // Save immediately
-                    try {
-                        const response = await fetch(API_ENDPOINTS.PREFERENCES.BASE, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${AuthManager.getToken()}`
-                            },
-                            body: JSON.stringify({
-                                key: 'digest_schedules',
-                                value: allSchedules
-                            })
-                        });
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
-                        // Re-render
-                        renderOtherTasks();
-                    } catch (err) {
-                        console.error("Delete failed", err);
-                        await Modal.alert(i18n.t('ai.api_error'));
-                    }
-                };
-
-                otherTasksList.appendChild(card);
-            });
-        };
-
         const updateFrequencyUI = () => {
+            const isUnread = !includeReadInput.checked;
             if (isTwiceDaily) {
                 freqOnceBtn.classList.remove('active');
                 freqTwiceBtn.classList.add('active');
-                freqDesc.textContent = i18n.t('settings.twice_daily_desc'); // "Every 12 hours"
+                freqDesc.textContent = i18n.t(isUnread ? 'settings.twice_daily_desc' : 'settings.twice_daily_desc_all');
                 secondTimePreview.style.display = 'block';
                 updateSecondTimePreview();
             } else {
                 freqTwiceBtn.classList.remove('active');
                 freqOnceBtn.classList.add('active');
-                freqDesc.textContent = i18n.t('settings.once_daily_desc'); // "Collect last 24h content"
+                freqDesc.textContent = i18n.t(isUnread ? 'settings.once_daily_desc' : 'settings.once_daily_desc_all');
                 secondTimePreview.style.display = 'none';
             }
         };
@@ -1223,6 +1161,38 @@ export const Dialogs = {
             };
         };
 
+        // Load schedule data for current scope
+        const loadScheduleForScope = () => {
+            const parsed = parseScope(scopeSelect.value);
+            scope = parsed.scope;
+            scopeId = parsed.scopeId;
+
+            const existingTasks = allSchedules.filter(t =>
+                t.scope === scope && String(t.scopeId || '') === String(scopeId || '')
+            );
+
+            isTwiceDaily = existingTasks.length > 1;
+
+            const firstTask = existingTasks[0];
+            const initialTime = firstTask ? firstTask.time : '08:00';
+            const isEnabled = existingTasks.length > 0 && existingTasks.some(t => t.enabled);
+            const isUnreadOnly = firstTask ? (firstTask.unreadOnly !== false) : true;
+
+            enabledInput.checked = isEnabled;
+            includeReadInput.checked = !isUnreadOnly;
+            configArea.style.opacity = isEnabled ? '1' : '0.5';
+            configArea.style.pointerEvents = isEnabled ? 'auto' : 'none';
+
+            // Load push enabled state
+            pushEnabledInput.checked = !!firstTask?.pushEnabled;
+
+            getPickerTime = setupTimePicker(pickerContainer, initialTime);
+            updateFrequencyUI();
+
+            loader.style.display = 'none';
+            form.style.display = 'block';
+        };
+
         // --- Events ---
 
         closeBtn.addEventListener('click', close);
@@ -1235,18 +1205,20 @@ export const Dialogs = {
             configArea.style.pointerEvents = enabledInput.checked ? 'auto' : 'none';
         });
 
+        includeReadInput.addEventListener('change', () => {
+            updateFrequencyUI();
+        });
+
+        // Scope change: reload schedule data
+        scopeSelect.addEventListener('change', () => {
+            loadScheduleForScope();
+        });
+
         manageOthersBtn.addEventListener('click', () => {
-            form.style.display = 'none';
-            otherSchedulesView.style.display = 'flex';
-            renderOtherTasks();
+            close();
+            Dialogs.showDigestManagerDialog();
         });
 
-        backToMainBtn.addEventListener('click', () => {
-            otherSchedulesView.style.display = 'none';
-            form.style.display = 'block';
-        });
-
-        // Fetch
         // --- Load Data ---
 
         fetch(API_ENDPOINTS.PREFERENCES.BASE, {
@@ -1255,37 +1227,7 @@ export const Dialogs = {
             .then(res => res.json())
             .then(prefs => {
                 allSchedules = prefs.digest_schedules || [];
-
-                // Filter tasks for current scope
-                const existingTasks = allSchedules.filter(t =>
-                    t.scope === scope && String(t.scopeId || '') === String(scopeId || '')
-                );
-
-                // Determine initial state
-                // If we have > 1 enabled task, or > 1 task total, assume Twice daily
-                // Otherwise Once daily
-                if (existingTasks.length > 1) {
-                    isTwiceDaily = true;
-                } else {
-                    isTwiceDaily = false;
-                }
-
-                const firstTask = existingTasks[0];
-                const initialTime = firstTask ? firstTask.time : '08:00';
-
-                // Determine if enabled: if any task is enabled (or logic preference)
-                const isEnabled = existingTasks.length > 0 && existingTasks.some(t => t.enabled);
-
-                enabledInput.checked = isEnabled;
-
-                configArea.style.opacity = enabledInput.checked ? '1' : '0.5';
-                configArea.style.pointerEvents = enabledInput.checked ? 'auto' : 'none';
-
-                getPickerTime = setupTimePicker(pickerContainer, initialTime);
-                updateFrequencyUI();
-
-                loader.style.display = 'none';
-                form.style.display = 'block';
+                loadScheduleForScope();
             })
             .catch(err => {
                 console.error('Load error', err);
@@ -1303,6 +1245,7 @@ export const Dialogs = {
 
             const time = getPickerTime();
             const isEnabled = enabledInput.checked;
+            const unreadOnly = !includeReadInput.checked;
 
             // Build new tasks
             const newTasks = [];
@@ -1318,7 +1261,8 @@ export const Dialogs = {
                     time: time,
                     enabled: isEnabled,
                     hours: 12, // 12h range
-
+                    unreadOnly: unreadOnly,
+                    pushEnabled: pushEnabledInput.checked,
                 });
                 // Task 2 (+12h)
                 const [h, m] = time.split(':').map(Number);
@@ -1334,7 +1278,8 @@ export const Dialogs = {
                     time: nextTime,
                     enabled: isEnabled,
                     hours: 12, // 12h range
-
+                    unreadOnly: unreadOnly,
+                    pushEnabled: pushEnabledInput.checked,
                 });
             } else {
                 // Task 1 (Once)
@@ -1347,7 +1292,8 @@ export const Dialogs = {
                     time: time,
                     enabled: isEnabled,
                     hours: 24, // 24h range for once daily
-
+                    unreadOnly: unreadOnly,
+                    pushEnabled: pushEnabledInput.checked,
                 });
             }
 
@@ -1377,17 +1323,369 @@ export const Dialogs = {
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
+                allSchedules = finalTasks;
                 msgEl.textContent = `✓ ${i18n.t('settings.save_success')}`;
                 msgEl.style.color = 'var(--accent-color)';
-                setTimeout(close, 1000);
+                submitBtn.disabled = false;
+                submitBtn.textContent = i18n.t('common.save');
+                setTimeout(() => { if (msgEl.style.color !== 'var(--danger-color)') msgEl.textContent = ''; }, 2000);
             } catch (err) {
                 console.error('Save error:', err);
-                msgEl.textContent = i18n.t('ai.api_error');
+                msgEl.textContent = `✗ ${i18n.t('ai.api_error')}`;
                 msgEl.style.color = 'var(--danger-color)';
                 submitBtn.disabled = false;
                 submitBtn.textContent = i18n.t('common.save');
             }
         });
+    },
+
+    /**
+     * 显示定时简报管理对话框
+     * 列出所有已有的定时简报任务
+     */
+    showDigestManagerDialog() {
+        const { dialog, close } = createDialog('settings-dialog', `
+            <div class="settings-dialog-content" style="position: relative; max-width: 500px; min-height: 400px;">
+                <button class="icon-btn close-dialog-btn" title="${i18n.t('common.close')}" style="position: absolute; right: 16px; top: 16px; width: 32px; height: 32px; z-index: 10;">
+                    ${Icons.close}
+                </button>
+                <h3>${i18n.t('digest.manager_title')}</h3>
+
+                <div style="font-weight: 600; margin-top: 16px; margin-bottom: 8px;">${i18n.t('digest.task_list')}</div>
+                <div id="digest-manager-list">
+                    <div style="text-align: center; padding: 20px; color: var(--meta-color);">
+                        ${i18n.t('common.loading')}
+                    </div>
+                </div>
+
+                <!-- Global Push Settings -->
+                <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <div style="font-weight: 600; margin-bottom: 12px;">${i18n.t('settings.push_notification')}</div>
+                    <div id="global-push-config">
+                        <div style="margin-bottom: 12px;">
+                            <div class="settings-item-label" style="margin-bottom: 6px;">${i18n.t('settings.push_url')}</div>
+                            <input type="text" id="global-push-url" placeholder="${i18n.t('settings.push_url_placeholder')}" style="width: 100%; padding: 10px 12px; border: none; border-radius: var(--radius); background: var(--card-bg); color: var(--text-color); box-shadow: var(--card-shadow); box-sizing: border-box; font-size: 0.9em;">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div class="settings-item-label" style="margin-bottom: 6px;">${i18n.t('settings.push_body')}</div>
+                            <textarea id="global-push-body" rows="4" placeholder='{"title": "{{title}}", "content": "{{digest_content}}"}' style="width: 100%; padding: 10px 12px; border: none; border-radius: var(--radius); background: var(--card-bg); color: var(--text-color); box-shadow: var(--card-shadow); box-sizing: border-box; font-size: 0.85em; font-family: monospace; resize: vertical;"></textarea>
+                            <div style="font-size: 0.8em; color: var(--meta-color); margin-top: 4px;">${i18n.t('settings.push_body_hint')}</div>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 4px;">
+                            <button type="button" id="global-push-test-btn" class="appearance-mode-btn" style="flex: 1; justify-content: center;">
+                                ${i18n.t('settings.push_test')}
+                            </button>
+                            <button type="button" id="global-push-save-btn" class="appearance-mode-btn active" style="flex: 1; justify-content: center;">
+                                ${i18n.t('common.save')}
+                            </button>
+                        </div>
+                        <div id="global-push-msg" style="text-align: center; font-size: 0.85em; min-height: 1.2em;"></div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 16px;">
+                    <div class="appearance-mode-group">
+                        <button type="button" id="digest-manager-add-btn" class="appearance-mode-btn active" style="justify-content: center; width: 100%;">
+                            ${i18n.t('digest.add_scheduled')}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        const closeBtn = dialog.querySelector('.close-dialog-btn');
+        const listContainer = dialog.querySelector('#digest-manager-list');
+        const addBtn = dialog.querySelector('#digest-manager-add-btn');
+
+        // Push notification elements
+        const globalPushUrl = dialog.querySelector('#global-push-url');
+        const globalPushBody = dialog.querySelector('#global-push-body');
+        const globalPushTestBtn = dialog.querySelector('#global-push-test-btn');
+        const globalPushSaveBtn = dialog.querySelector('#global-push-save-btn');
+        const globalPushMsg = dialog.querySelector('#global-push-msg');
+
+        closeBtn?.addEventListener('click', close);
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) close();
+        });
+
+        globalPushTestBtn.addEventListener('click', async () => {
+            const url = globalPushUrl.value.trim();
+            if (!url) {
+                globalPushMsg.textContent = `✗ ${i18n.t('settings.push_url')}`;
+                globalPushMsg.style.color = 'var(--danger-color)';
+                return;
+            }
+            globalPushTestBtn.disabled = true;
+            globalPushMsg.textContent = '...';
+            globalPushMsg.style.color = 'var(--meta-color)';
+            try {
+                const bodyTemplate = globalPushBody.value.trim() || '{}';
+                const body = bodyTemplate
+                    .replace(/\{\{title\}\}/g, 'Test Digest Title')
+                    .replace(/\{\{digest_content\}\}/g, 'This is a test push notification.');
+                const resp = await fetch(API_ENDPOINTS.DIGEST.TEST_PUSH, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${AuthManager.getToken()}`
+                    },
+                    body: JSON.stringify({ url, body })
+                });
+                const result = await resp.json();
+                if (result.ok) {
+                    globalPushMsg.textContent = `✓ ${i18n.t('settings.push_test_success')}`;
+                    globalPushMsg.style.color = 'var(--accent-color)';
+                } else {
+                    globalPushMsg.textContent = `✗ HTTP ${result.status || resp.status}`;
+                    globalPushMsg.style.color = 'var(--danger-color)';
+                }
+            } catch (err) {
+                globalPushMsg.textContent = `✗ ${i18n.t('settings.push_test_failed')}`;
+                globalPushMsg.style.color = 'var(--danger-color)';
+            }
+            globalPushTestBtn.disabled = false;
+            setTimeout(() => { globalPushMsg.textContent = ''; }, 3000);
+        });
+
+        const savePushConfig = async () => {
+            try {
+                const pushConfig = {
+                    url: globalPushUrl.value.trim(),
+                    body: globalPushBody.value.trim()
+                };
+                const response = await fetch(API_ENDPOINTS.PREFERENCES.BASE, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${AuthManager.getToken()}`
+                    },
+                    body: JSON.stringify({
+                        key: 'digest_push_config',
+                        value: pushConfig
+                    })
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return true;
+            } catch (err) {
+                console.error('Save push config failed:', err);
+                return false;
+            }
+        };
+
+        globalPushSaveBtn.addEventListener('click', async () => {
+            globalPushSaveBtn.disabled = true;
+            globalPushMsg.textContent = '...';
+            globalPushMsg.style.color = 'var(--meta-color)';
+            const success = await savePushConfig();
+            if (success) {
+                globalPushMsg.textContent = `✓ ${i18n.t('settings.save_success')}`;
+                globalPushMsg.style.color = 'var(--accent-color)';
+            } else {
+                globalPushMsg.textContent = `✗ ${i18n.t('common.error')}`;
+                globalPushMsg.style.color = 'var(--danger-color)';
+            }
+            globalPushSaveBtn.disabled = false;
+            setTimeout(() => { globalPushMsg.textContent = ''; }, 2000);
+        });
+
+        // Helper: get scope display name
+        const getScopeName = (task) => {
+            if (task.scope === 'all') return i18n.t('nav.all');
+            if (task.scope === 'group') {
+                const group = AppState.groups?.find(g => g.id == (task.scopeId || task.groupId));
+                return group ? group.name : `Group #${task.scopeId || task.groupId}`;
+            }
+            if (task.scope === 'feed') {
+                const feed = AppState.feeds?.find(f => f.id == (task.scopeId || task.feedId));
+                return feed ? feed.title : `Feed #${task.scopeId || task.feedId}`;
+            }
+            return i18n.t('common.unnamed');
+        };
+
+        let allSchedules = [];
+
+        // Load and render tasks
+        const loadTasks = async () => {
+            try {
+                const response = await fetch(API_ENDPOINTS.PREFERENCES.BASE, {
+                    headers: { 'Authorization': `Bearer ${AuthManager.getToken()}` }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const prefs = await response.json();
+                allSchedules = prefs.digest_schedules || [];
+
+                // Load push config
+                const pushCfg = prefs.digest_push_config || {};
+                globalPushUrl.value = pushCfg.url || '';
+                globalPushBody.value = pushCfg.body || '';
+
+                renderTasks();
+            } catch (err) {
+                console.error('Load digest tasks error:', err);
+                listContainer.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: var(--danger-color);">
+                        ${i18n.t('common.load_error')}
+                    </div>
+                `;
+            }
+        };
+
+        const renderTasks = () => {
+            if (allSchedules.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="text-align: center; padding: 40px 20px; color: var(--meta-color);">
+                        ${i18n.t('digest.no_scheduled_tasks')}
+                    </div>
+                `;
+                return;
+            }
+
+            // Group tasks by scope+scopeId (a twice-daily schedule has 2 tasks)
+            const grouped = {};
+            allSchedules.forEach(t => {
+                const key = `${t.scope}_${t.scopeId || ''}`;
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(t);
+            });
+
+            listContainer.innerHTML = '';
+
+            Object.keys(grouped).forEach(key => {
+                const tasks = grouped[key];
+                const first = tasks[0];
+                const scopeName = getScopeName(first);
+                const isEnabled = tasks.some(t => t.enabled);
+                const timeStr = tasks.map(t => t.time).sort().join(' & ');
+                const freqLabel = tasks.length > 1 ? i18n.t('settings.twice_daily') : i18n.t('settings.once_daily');
+                const hoursLabel = first.hours ? `${first.hours}h` : '24h';
+                const hasPush = first.pushEnabled;
+
+                const card = document.createElement('div');
+                card.style.cssText = `
+                    background: var(--card-bg);
+                    padding: 14px 16px;
+                    border-radius: var(--radius);
+                    margin-bottom: 8px;
+                    box-shadow: var(--card-shadow);
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border: none;
+                    transition: box-shadow 0.2s;
+                `;
+
+                card.innerHTML = `
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 700; font-size: 1em; color: var(--title-color); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            ${scopeName}
+                        </div>
+                        <div style="font-size: 0.85em; color: var(--meta-color); display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                            <span>${freqLabel}</span>
+                            <span style="opacity: 0.4;">·</span>
+                            <span style="font-family: monospace;">${timeStr}</span>
+                            <span style="opacity: 0.4;">·</span>
+                            <span>${hoursLabel}</span>
+                            ${hasPush ? `<span style="opacity: 0.4;">·</span><span title="${i18n.t('settings.push_notification')}">🔔</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-left: 8px; align-items: center;">
+                        <label class="switch" style="margin: 0;">
+                            <input type="checkbox" class="toggle-task-btn" ${isEnabled ? 'checked' : ''}>
+                            <span class="slider round"></span>
+                        </label>
+                        <button class="icon-btn edit-task-btn" title="${i18n.t('ai.scheduled_digest')}" style="width: 28px; height: 28px; opacity: 0.7; transition: opacity 0.2s;">
+                            ${Icons.edit}
+                        </button>
+                        <button class="icon-btn delete-task-btn" title="${i18n.t('digest.delete')}" style="color: var(--danger-color); width: 28px; height: 28px; opacity: 0.7; transition: opacity 0.2s;">
+                            ${Icons.delete}
+                        </button>
+                    </div>
+                `;
+
+                // Update card opacity based on enabled state
+                card.style.opacity = isEnabled ? '1' : '0.6';
+
+                // Toggle enabled/disabled
+                card.querySelector('.toggle-task-btn').addEventListener('change', async (e) => {
+                    const newEnabled = e.target.checked;
+
+                    // Update all tasks in this group
+                    tasks.forEach(t => { t.enabled = newEnabled; });
+
+                    // Update card opacity
+                    card.style.opacity = newEnabled ? '1' : '0.6';
+
+                    try {
+                        const response = await fetch(API_ENDPOINTS.PREFERENCES.BASE, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${AuthManager.getToken()}`
+                            },
+                            body: JSON.stringify({
+                                key: 'digest_schedules',
+                                value: allSchedules
+                            })
+                        });
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    } catch (err) {
+                        console.error('Toggle task failed:', err);
+                        // Revert on error
+                        e.target.checked = !newEnabled;
+                        tasks.forEach(t => { t.enabled = !newEnabled; });
+                        card.style.opacity = !newEnabled ? '1' : '0.6';
+                        showToast(i18n.t('common.error'), 2000, false);
+                    }
+                });
+
+                // Edit: open schedule dialog for this scope
+                card.querySelector('.edit-task-btn').addEventListener('click', () => {
+                    close();
+                    const context = {};
+                    if (first.scope === 'feed') context.feedId = first.scopeId || first.feedId;
+                    if (first.scope === 'group') context.groupId = first.scopeId || first.groupId;
+                    Dialogs.showDigestScheduleDialog(context);
+                });
+
+                // Delete
+                card.querySelector('.delete-task-btn').addEventListener('click', async () => {
+                    if (!await Modal.confirm(i18n.t('settings.confirm_delete_schedule'))) return;
+
+                    // Remove these tasks
+                    allSchedules = allSchedules.filter(t => !tasks.includes(t));
+
+                    try {
+                        const response = await fetch(API_ENDPOINTS.PREFERENCES.BASE, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${AuthManager.getToken()}`
+                            },
+                            body: JSON.stringify({
+                                key: 'digest_schedules',
+                                value: allSchedules
+                            })
+                        });
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        renderTasks();
+                    } catch (err) {
+                        console.error('Delete task failed:', err);
+                        showToast(i18n.t('common.error'), 2000, false);
+                    }
+                });
+
+                listContainer.appendChild(card);
+            });
+        };
+
+        // Add button → go to schedule dialog
+        addBtn.addEventListener('click', () => {
+            close();
+            Dialogs.showDigestScheduleDialog({});
+        });
+
+        loadTasks();
     },
 
     /**
