@@ -110,8 +110,10 @@ export default {
         push_notification: '推送通知',
         push_url: '推送 URL',
         push_url_placeholder: 'https://example.com/webhook',
+        push_method: '请求方法',
         push_body: '请求体（JSON）',
         push_body_hint: '支持变量：{{title}}、{{digest_content}}',
+        push_url_hint_get: 'GET 模式：变量直接写在 URL 中，如 https://api.day.app/key/{{title}}/{{digest_content}}',
 
         push_test: '测试推送',
         push_test_success: '推送测试成功',

@@ -143,18 +143,27 @@ export const DigestScheduler = {
                                 // Push notification (per-task enabled + global config)
                                 if (task.pushEnabled && pushConfig?.url) {
                                     try {
-                                        const pushUrl = pushConfig.url;
-                                        const bodyTemplate = pushConfig.body || '{}';
-                                        const body = bodyTemplate
-                                            .replace(/\{\{title\}\}/g, result.digest.title || '')
-                                            .replace(/\{\{digest_content\}\}/g, (result.digest.content || '').replace(/"/g, '\\"'));
-
-                                        const resp = await fetch(pushUrl, {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: body
-                                        });
-                                        console.log(`Push notification sent for user ${userId} [POST ${pushUrl}]: ${resp.status}`);
+                                        const pushMethod = (pushConfig.method || 'POST').toUpperCase();
+                                        let resp;
+                                        if (pushMethod === 'GET') {
+                                            const pushUrl = pushConfig.url
+                                                .replace(/\{\{title\}\}/g, encodeURIComponent(result.digest.title || ''))
+                                                .replace(/\{\{digest_content\}\}/g, encodeURIComponent(result.digest.content || ''));
+                                            resp = await fetch(pushUrl, { method: 'GET' });
+                                            console.log(`Push notification sent for user ${userId} [GET ${pushUrl}]: ${resp.status}`);
+                                        } else {
+                                            const pushUrl = pushConfig.url;
+                                            const bodyTemplate = pushConfig.body || '{}';
+                                            const body = bodyTemplate
+                                                .replace(/\{\{title\}\}/g, result.digest.title || '')
+                                                .replace(/\{\{digest_content\}\}/g, (result.digest.content || '').replace(/"/g, '\\"'));
+                                            resp = await fetch(pushUrl, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: body
+                                            });
+                                            console.log(`Push notification sent for user ${userId} [POST ${pushUrl}]: ${resp.status}`);
+                                        }
                                     } catch (pushErr) {
                                         console.error(`Push notification failed for user ${userId}:`, pushErr.message);
                                     }

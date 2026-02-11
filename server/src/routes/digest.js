@@ -313,16 +313,22 @@ router.get('/preview', authenticateToken, async (req, res) => {
  */
 router.post('/test-push', authenticateToken, async (req, res) => {
     try {
-        const { url, body } = req.body;
+        const { url, body, method } = req.body;
         if (!url) {
             return res.status(400).json({ error: 'URL is required' });
         }
 
-        const resp = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: body || '{}'
-        });
+        const useMethod = (method || 'POST').toUpperCase();
+        let resp;
+        if (useMethod === 'GET') {
+            resp = await fetch(url, { method: 'GET' });
+        } else {
+            resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: body || '{}'
+            });
+        }
 
         const responseText = await resp.text();
         res.json({

@@ -110,8 +110,10 @@ export default {
         push_notification: 'Push Notification',
         push_url: 'Push URL',
         push_url_placeholder: 'https://example.com/webhook',
+        push_method: 'Request Method',
         push_body: 'Request Body (JSON)',
         push_body_hint: 'Variables: {{title}}, {{digest_content}}',
+        push_url_hint_get: 'GET mode: Put variables in URL, e.g. https://api.day.app/key/{{title}}/{{digest_content}}',
 
         push_test: 'Test Push',
         push_test_success: 'Push test succeeded',

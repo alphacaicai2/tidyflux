@@ -87,6 +87,14 @@ export const ManagerDialogMixin = {
                             <input type="text" id="global-push-url" class="auth-input" placeholder="${i18n.t('settings.push_url_placeholder')}" style="margin-bottom: 0;">
                         </div>
                         <div style="margin-bottom: 12px;">
+                            <div class="settings-item-label" style="margin-bottom: 6px;">${i18n.t('settings.push_method')}</div>
+                            <div class="appearance-mode-group" style="margin-bottom: 0;">
+                                <button type="button" class="appearance-mode-btn" data-push-method="GET">GET</button>
+                                <button type="button" class="appearance-mode-btn active" data-push-method="POST">POST</button>
+                            </div>
+                        </div>
+                        <div id="global-push-url-hint-get" style="font-size: 0.8em; color: var(--meta-color); margin-bottom: 12px; display: none;">${i18n.t('settings.push_url_hint_get')}</div>
+                        <div id="global-push-body-section" style="margin-bottom: 12px;">
                             <div class="settings-item-label" style="margin-bottom: 6px;">${i18n.t('settings.push_body')}</div>
                             <textarea id="global-push-body" class="auth-input" rows="4" placeholder='{"title": "{{title}}", "content": "{{digest_content}}"}' style="margin-bottom: 8px; resize: vertical; font-family: monospace;"></textarea>
                             <div style="font-size: 0.8em; color: var(--meta-color); margin-top: 4px;">${i18n.t('settings.push_body_hint')}</div>
@@ -271,13 +279,39 @@ export const ManagerDialogMixin = {
         const globalPushTestBtn = dialog.querySelector('#global-push-test-btn');
         const globalPushSaveBtn = dialog.querySelector('#global-push-save-btn');
         const globalPushMsg = dialog.querySelector('#global-push-msg');
+        const globalPushBodySection = dialog.querySelector('#global-push-body-section');
+        const globalPushUrlHintGet = dialog.querySelector('#global-push-url-hint-get');
+        const pushMethodBtns = dialog.querySelectorAll('[data-push-method]');
+
+        // Track selected push method
+        let selectedPushMethod = 'POST';
+
+        const updatePushMethodUI = () => {
+            pushMethodBtns.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.pushMethod === selectedPushMethod);
+            });
+            if (selectedPushMethod === 'GET') {
+                globalPushBodySection.style.display = 'none';
+                globalPushUrlHintGet.style.display = '';
+            } else {
+                globalPushBodySection.style.display = '';
+                globalPushUrlHintGet.style.display = 'none';
+            }
+        };
+
+        pushMethodBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedPushMethod = btn.dataset.pushMethod;
+                updatePushMethodUI();
+            });
+        });
 
 
 
 
         globalPushTestBtn.addEventListener('click', async () => {
-            const url = globalPushUrl.value.trim();
-            if (!url) {
+            const urlTemplate = globalPushUrl.value.trim();
+            if (!urlTemplate) {
                 globalPushMsg.textContent = `✗ ${i18n.t('settings.push_url')}`;
                 globalPushMsg.style.color = 'var(--danger-color)';
                 return;
@@ -286,17 +320,25 @@ export const ManagerDialogMixin = {
             globalPushMsg.textContent = '...';
             globalPushMsg.style.color = 'var(--meta-color)';
             try {
-                const bodyTemplate = globalPushBody.value.trim() || '{}';
-                const body = bodyTemplate
-                    .replace(/\{\{title\}\}/g, 'Test Digest Title')
-                    .replace(/\{\{digest_content\}\}/g, 'This is a test push notification.');
+                let testUrl = urlTemplate;
+                let testBody = undefined;
+                if (selectedPushMethod === 'GET') {
+                    testUrl = urlTemplate
+                        .replace(/\{\{title\}\}/g, encodeURIComponent('Test Digest Title'))
+                        .replace(/\{\{digest_content\}\}/g, encodeURIComponent('This is a test push notification.'));
+                } else {
+                    const bodyTemplate = globalPushBody.value.trim() || '{}';
+                    testBody = bodyTemplate
+                        .replace(/\{\{title\}\}/g, 'Test Digest Title')
+                        .replace(/\{\{digest_content\}\}/g, 'This is a test push notification.');
+                }
                 const resp = await fetch(API_ENDPOINTS.DIGEST.TEST_PUSH, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${AuthManager.getToken()}`
                     },
-                    body: JSON.stringify({ url, body })
+                    body: JSON.stringify({ url: testUrl, body: testBody, method: selectedPushMethod })
                 });
                 const result = await resp.json();
                 if (result.ok) {
@@ -318,6 +360,7 @@ export const ManagerDialogMixin = {
             try {
                 const pushConfig = {
                     url: globalPushUrl.value.trim(),
+                    method: selectedPushMethod,
                     body: globalPushBody.value.trim()
                 };
                 const response = await fetch(API_ENDPOINTS.PREFERENCES.BASE, {
@@ -385,6 +428,8 @@ export const ManagerDialogMixin = {
                 const pushCfg = prefs.digest_push_config || {};
                 globalPushUrl.value = pushCfg.url || '';
                 globalPushBody.value = pushCfg.body || '';
+                selectedPushMethod = pushCfg.method || 'POST';
+                updatePushMethodUI();
 
                 // Load timezone
                 const savedTz = prefs.digest_timezone || '';
