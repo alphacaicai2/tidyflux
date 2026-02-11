@@ -352,9 +352,25 @@ export function createDialog(className, innerHTML, options = {}) {
     if (!options.preventClose) {
         document.addEventListener('keydown', escHandler);
 
-        // 点击背景关闭
+        // 点击背景关闭（需要 mousedown 和 click 都在背景上才关闭，
+        // 防止在面板内选择文字拖动到面板外时误关闭）
+        let mouseDownOnBackdrop = false;
+        dialog.addEventListener('mousedown', (e) => {
+            mouseDownOnBackdrop = (e.target === dialog);
+        });
         dialog.addEventListener('click', (e) => {
-            if (e.target === dialog) close();
+            if (e.target === dialog && mouseDownOnBackdrop) close();
+            mouseDownOnBackdrop = false;
+        });
+
+        // 触摸设备同样处理
+        let touchStartOnBackdrop = false;
+        dialog.addEventListener('touchstart', (e) => {
+            touchStartOnBackdrop = (e.target === dialog);
+        }, { passive: true });
+        dialog.addEventListener('touchend', (e) => {
+            if (e.target === dialog && touchStartOnBackdrop) close();
+            touchStartOnBackdrop = false;
         });
 
         // 关闭按钮
