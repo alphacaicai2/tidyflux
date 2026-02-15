@@ -19,10 +19,11 @@
     transition: none !important;
 }
 
-/* 左栏 - 订阅源 */
+/* 左栏 - 订阅源（桌面端可调宽度、可折叠） */
 .feeds-panel {
     width: 200px;
-    min-width: 200px;
+    min-width: 160px;
+    max-width: 400px;
     display: flex;
     flex-direction: column;
     background: transparent;
@@ -31,6 +32,31 @@
     overflow: hidden;
     border-right: 1px solid var(--border-color);
     position: relative;
+    flex-shrink: 0;
+    transition: width 0.2s ease, min-width 0.2s ease;
+}
+
+/* 拖拽调整订阅栏宽度（仅桌面三栏模式显示） */
+.feeds-panel-resize-handle {
+    display: none;
+    width: 4px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    z-index: 5;
+}
+
+.feeds-panel-resize-handle:hover,
+.feeds-panel-resize-handle.feeds-panel-resize-handle--dragging {
+    background: var(--accent-color);
+    opacity: 0.4;
+}
+
+@media (min-width: 1101px) {
+    .feeds-panel-resize-handle {
+        display: block;
+    }
 }
 
 /* 中栏 - 文章列表 */
@@ -118,22 +144,11 @@
     padding: 0 10px;
 }
 
-#show-feeds-btn {
-    display: none;
-}
-
-@media (min-width: 801px) and (max-width: 1100px) {
-    #show-feeds-btn {
-        display: flex;
-    }
-}
-
-/* 主题色按钮 - 添加订阅、菜单、订阅源按钮、搜索按钮、刷新按钮 */
+/* 主题色按钮 - 添加订阅、菜单、搜索按钮、刷新按钮 */
 #add-feed-btn,
 #articles-menu-btn,
 #articles-search-btn,
-#articles-refresh-btn,
-#show-feeds-btn {
+#articles-refresh-btn {
     color: var(--accent-color);
 }
 
@@ -145,8 +160,7 @@
 #add-feed-btn:hover,
 #articles-menu-btn:hover,
 #articles-search-btn:hover,
-#articles-refresh-btn:hover,
-#show-feeds-btn:hover {
+#articles-refresh-btn:hover {
     color: var(--accent-color);
     background: var(--hover-bg);
     box-shadow: var(--card-shadow-hover);
@@ -453,10 +467,6 @@
 
     .panel-header h2 {
         font-size: 1em;
-    }
-
-    #show-feeds-btn {
-        display: flex;
     }
 
     .feeds-panel,

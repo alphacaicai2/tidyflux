@@ -29,23 +29,25 @@ export const ManagerDialogMixin = {
                 </button>
                 <h3>${i18n.t('digest.manager_title')}</h3>
 
-                <div style="font-weight: 600; margin-top: 16px; margin-bottom: 8px;">${i18n.t('digest.task_list')}</div>
-                <div id="digest-manager-list">
-                    <div style="text-align: center; padding: 20px; color: var(--meta-color);">
-                        ${i18n.t('common.loading')}
+                <div class="digest-manager-section">
+                    <div style="font-weight: 600; margin-bottom: 4px;">${i18n.t('digest.task_list')}</div>
+                    <div style="font-size: 0.8em; color: var(--meta-color); margin-bottom: 10px;">${i18n.t('digest.task_list_hint')}</div>
+                    <div id="digest-manager-list">
+                        <div style="text-align: center; padding: 20px; color: var(--meta-color);">
+                            ${i18n.t('common.loading')}
+                        </div>
                     </div>
-                </div>
-
-                <div style="margin-top: 12px; margin-bottom: 4px;">
-                    <div class="appearance-mode-group">
-                        <button type="button" id="digest-manager-add-btn" class="appearance-mode-btn active" style="justify-content: center; width: 100%;">
-                            ${i18n.t('digest.add_scheduled')}
-                        </button>
+                    <div style="margin-top: 12px; margin-bottom: 4px;">
+                        <div class="appearance-mode-group">
+                            <button type="button" id="digest-manager-add-btn" class="appearance-mode-btn active" style="justify-content: center; width: 100%;">
+                                ${i18n.t('digest.add_scheduled')}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Timezone Settings -->
-                <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                <div class="digest-manager-section" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
                     <div style="font-weight: 600; margin-bottom: 12px;">${i18n.t('settings.timezone')}</div>
                     <div style="margin-bottom: 8px;">
                         <select id="manager-timezone-select" class="auth-input" style="margin-bottom: 0; cursor: pointer;">
@@ -62,10 +64,11 @@ export const ManagerDialogMixin = {
                 </div>
 
                 <!-- Digest Prompt Settings -->
-                <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
-                    <div style="font-weight: 600; margin-bottom: 12px;">${i18n.t('ai.digest_prompt')}</div>
+                <div class="digest-manager-section" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <div style="font-weight: 600; margin-bottom: 6px;">${i18n.t('ai.digest_prompt')}</div>
+                    <div style="font-size: 0.8em; color: var(--meta-color); margin-bottom: 10px;">${i18n.t('digest.prompt_hint')}</div>
                     <div style="margin-bottom: 12px;">
-                        <textarea id="manager-digest-prompt" class="auth-input" rows="4" placeholder="${i18n.t('ai.digest_prompt_placeholder')}" style="margin-bottom: 8px; resize: vertical; min-height: 80px;"></textarea>
+                        <textarea id="manager-digest-prompt" class="auth-input" rows="5" placeholder="${i18n.t('ai.digest_prompt_placeholder')}" style="margin-bottom: 8px; resize: vertical; min-height: 96px;"></textarea>
                     </div>
                     <div style="display: flex; gap: 8px; margin-bottom: 4px;">
                         <button type="button" id="manager-digest-prompt-reset-btn" class="appearance-mode-btn" style="flex: 1; justify-content: center;">
@@ -79,8 +82,9 @@ export const ManagerDialogMixin = {
                 </div>
 
                 <!-- Global Push Settings -->
-                <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
-                    <div style="font-weight: 600; margin-bottom: 12px;">${i18n.t('settings.push_notification')}</div>
+                <div class="digest-manager-section" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <div style="font-weight: 600; margin-bottom: 6px;">${i18n.t('settings.push_notification')}</div>
+                    <div style="font-size: 0.8em; color: var(--meta-color); margin-bottom: 10px;">${i18n.t('settings.push_section_hint')}</div>
                     <div id="global-push-config">
                         <div style="margin-bottom: 12px;">
                             <div class="settings-item-label" style="margin-bottom: 6px;">${i18n.t('settings.push_url')}</div>
@@ -450,8 +454,9 @@ export const ManagerDialogMixin = {
         const renderTasks = () => {
             if (allSchedules.length === 0) {
                 listContainer.innerHTML = `
-                    <div style="text-align: center; padding: 40px 20px; color: var(--meta-color);">
-                        ${i18n.t('digest.no_scheduled_tasks')}
+                    <div class="digest-manager-empty" style="text-align: center; padding: 28px 20px; color: var(--meta-color); font-size: 0.95em;">
+                        <div style="margin-bottom: 8px;">${i18n.t('digest.no_scheduled_tasks')}</div>
+                        <div style="font-size: 0.85em; opacity: 0.9;">${i18n.t('digest.task_list_hint')}</div>
                     </div>
                 `;
                 return;
