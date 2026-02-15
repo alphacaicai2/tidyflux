@@ -220,6 +220,10 @@ export const SettingsDialogMixin = {
                                 <label class="miniflux-input-label">${i18n.t('ai.summarize_prompt')}</label>
                                 <textarea id="ai-summarize-prompt" class="auth-input" rows="3" placeholder="${i18n.t('ai.summarize_prompt_placeholder')}" style="margin-bottom: 8px; resize: vertical; min-height: 80px;"></textarea>
 
+                                <label class="miniflux-input-label">${i18n.t('ai.digest_prompt')}</label>
+                                <textarea id="ai-digest-prompt" class="auth-input" rows="3" placeholder="${i18n.t('ai.digest_prompt_placeholder')}" style="margin-bottom: 8px; resize: vertical; min-height: 80px;"></textarea>
+                                <div style="font-size: 0.8em; color: var(--meta-color); margin-bottom: 8px;">${i18n.t('digest.prompt_hint')}</div>
+
                                 <button type="button" id="ai-reset-prompts-btn" style="background: none; border: none; color: var(--accent-color); padding: 4px 0; font-size: 0.85em; cursor: pointer; margin-top: 8px;">
                                     ${i18n.t('ai.reset_prompts')}
                                 </button>
@@ -444,6 +448,7 @@ export const SettingsDialogMixin = {
         const aiConfig = AIService.getConfig();
         const defaultTranslatePrompt = AIService.getDefaultPrompt('translate');
         const defaultSummarizePrompt = AIService.getDefaultPrompt('summarize');
+        const defaultDigestPrompt = AIService.getDefaultPrompt('digest');
 
         // Helper: Detect provider from API URL
         const detectProviderFromUrl = (url) => {
@@ -560,6 +565,8 @@ export const SettingsDialogMixin = {
 
         if (aiTranslatePromptInput) aiTranslatePromptInput.value = aiConfig.translatePrompt || defaultTranslatePrompt;
         if (aiSummarizePromptInput) aiSummarizePromptInput.value = aiConfig.summarizePrompt || defaultSummarizePrompt;
+        const aiDigestPromptInput = dialog.querySelector('#ai-digest-prompt');
+        if (aiDigestPromptInput) aiDigestPromptInput.value = aiConfig.digestPrompt || defaultDigestPrompt;
 
         // 自动摘要开关
         const aiAutoSummaryCheckbox = dialog.querySelector('#ai-auto-summary');
@@ -599,6 +606,7 @@ export const SettingsDialogMixin = {
             aiResetPromptsBtn.addEventListener('click', () => {
                 if (aiTranslatePromptInput) aiTranslatePromptInput.value = defaultTranslatePrompt;
                 if (aiSummarizePromptInput) aiSummarizePromptInput.value = defaultSummarizePrompt;
+                if (aiDigestPromptInput) aiDigestPromptInput.value = defaultDigestPrompt;
             });
         }
 
@@ -665,7 +673,7 @@ export const SettingsDialogMixin = {
                     targetLang: aiTargetLangSelect.value,
                     translatePrompt: aiTranslatePromptInput.value.trim(),
                     summarizePrompt: aiSummarizePromptInput.value.trim(),
-                    digestPrompt: AIService.getConfig().digestPrompt || '',
+                    digestPrompt: aiDigestPromptInput ? aiDigestPromptInput.value.trim() : (AIService.getConfig().digestPrompt || ''),
                     autoSummary: dialog.querySelector('#ai-auto-summary')?.checked || false
                 };
 
