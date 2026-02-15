@@ -331,7 +331,44 @@ export const ManagerDialogMixin = {
                         .replace(/\{\{title\}\}/g, encodeURIComponent('Test Digest Title'))
                         .replace(/\{\{digest_content\}\}/g, encodeURIComponent('This is a test push notification.'));
                 } else {
-                    const bodyTemplate = globalPushBody.value.trim() || '{}';
+                    let bodyTemplate = globalPushBody.value.trim();
+                    
+                    // Intelligent Body Auto-fill
+                    if (!bodyTemplate) {
+                        const lowerUrl = urlTemplate.toLowerCase();
+                        if (lowerUrl.includes('discord.com')) {
+                            bodyTemplate = '{"content": "**{{title}}**\\n{{digest_content}}"}';
+                        } else if (lowerUrl.includes('dingtalk.com')) {
+                            bodyTemplate = '{"msgtype": "text", "text": {"content": "【{{title}}】\\n{{digest_content}}"}}';
+                        } else if (lowerUrl.includes('feishu.cn') || lowerUrl.includes('larksuite.com')) {
+                            bodyTemplate = '{"msg_type": "text", "content": {"text": "【{{title}}】\\n{{digest_content}}"}}';
+                        } else if (lowerUrl.includes('slack.com')) {
+                            bodyTemplate = '{"text": "*{{title}}*\\n{{digest_content}}"}';
+                        } else {
+                            // Default generic JSON
+                            bodyTemplate = '{"title": "{{title}}", "content": "{{digest_content}}"}';
+                        }
+                        // Auto-fill the textarea for the user
+                        globalPushBody.value = bodyTemplate;
+                        
+                        // Flash message to inform user
+                        showToast(i18n.t('settings.push_autofill_hint') || 'Auto-filled body template', 2000);
+                    } else {
+                         // Validate existing JSON
+                         try {
+                            JSON.parse(bodyTemplate);
+                        } catch (e) {
+                             // Only warn if it looks like they are trying to write JSON
+                            if (bodyTemplate.startsWith('{')) {
+                                globalPushMsg.textContent = `✗ ${i18n.t('common.error')}: Invalid JSON format`;
+                                globalPushMsg.style.color = 'var(--danger-color)';
+                                globalPushTestBtn.disabled = false;
+                                setTimeout(() => { globalPushMsg.textContent = ''; }, 3000);
+                                return;
+                            }
+                        }
+                    }
+
                     testBody = bodyTemplate
                         .replace(/\{\{title\}\}/g, 'Test Digest Title')
                         .replace(/\{\{digest_content\}\}/g, 'This is a test push notification.');
@@ -349,7 +386,9 @@ export const ManagerDialogMixin = {
                     globalPushMsg.textContent = `✓ ${i18n.t('settings.push_test_success')}`;
                     globalPushMsg.style.color = 'var(--accent-color)';
                 } else {
-                    globalPushMsg.textContent = `✗ HTTP ${result.status || resp.status}`;
+                    let errMsg = result.response || result.status;
+                    if (errMsg && errMsg.length > 50) errMsg = errMsg.substring(0, 50) + '...';
+                    globalPushMsg.textContent = `✗ HTTP ${result.status}: ${escapeHtml(errMsg)}`;
                     globalPushMsg.style.color = 'var(--danger-color)';
                 }
             } catch (err) {
@@ -357,7 +396,7 @@ export const ManagerDialogMixin = {
                 globalPushMsg.style.color = 'var(--danger-color)';
             }
             globalPushTestBtn.disabled = false;
-            setTimeout(() => { globalPushMsg.textContent = ''; }, 3000);
+            // setTimeout(() => { globalPushMsg.textContent = ''; }, 5000); // Wait longer for error
         });
 
         const savePushConfig = async () => {
@@ -511,6 +550,9 @@ export const ManagerDialogMixin = {
                         </div>
                     </div>
                     <div style="display: flex; gap: 8px; margin-left: 8px; align-items: center;">
+                        <button class="icon-btn run-task-btn" title="${i18n.t('digest.run_now') || 'Run Now'}" style="width: 28px; height: 28px; opacity: 0.7; transition: opacity 0.2s;">
+                            ${Icons.play_arrow}
+                        </button>
                         <label class="switch" style="margin: 0;">
                             <input type="checkbox" class="toggle-task-btn" ${isEnabled ? 'checked' : ''}>
                             <span class="slider round"></span>
@@ -557,6 +599,59 @@ export const ManagerDialogMixin = {
                         tasks.forEach(t => { t.enabled = !newEnabled; });
                         card.style.opacity = !newEnabled ? '1' : '0.6';
                         showToast(i18n.t('common.error'), 2000, false);
+                    }
+                });
+
+                // Run Now
+                card.querySelector('.run-task-btn').addEventListener('click', async (e) => {
+                    const btn = e.currentTarget;
+                    if (btn.disabled) return;
+                    
+                    // Find index of the first task in this group within allSchedules
+                    // We trigger the first one as representative (layout/hours usually same)
+                    const taskIndex = allSchedules.indexOf(tasks[0]);
+                    if (taskIndex === -1) return;
+
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    const originalIcon = btn.innerHTML;
+                    btn.innerHTML = Icons.spinner; // Spinner icon
+                    
+                    showToast(i18n.t('digest.generating') || 'Generating digest...', 3000);
+
+                    try {
+                        const response = await fetch(API_ENDPOINTS.DIGEST.RUN_TASK || '/api/digest/run-task', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${AuthManager.getToken()}`
+                            },
+                            body: JSON.stringify({ taskIndex })
+                        });
+                        
+                        const result = await response.json();
+                        if (response.ok && result.success) {
+                            let msg = i18n.t('digest.manager_success') || 'Digest generated successfully';
+                            if (result.push) {
+                                if (result.push.attempted) {
+                                    msg += result.push.success 
+                                        ? ` & Pushed (${result.push.status || 'OK'} ✅)` 
+                                        : ` (Push Failed ${result.push.status || ''} ❌)`;
+                                } else {
+                                    msg += ' (Push Skipped ⚠️)';
+                                }
+                            }
+                            showToast(msg, 3000, true);
+                        } else {
+                            throw new Error(result.error || 'Failed');
+                        }
+                    } catch (err) {
+                        console.error('Run task failed:', err);
+                        showToast(`${i18n.t('common.error')}: ${err.message}`, 3000, false);
+                    } finally {
+                        btn.disabled = false;
+                        btn.style.opacity = '0.7';
+                        btn.innerHTML = originalIcon;
                     }
                 });
 

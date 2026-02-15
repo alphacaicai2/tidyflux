@@ -307,6 +307,11 @@ export default {
         reset_prompts: 'Reset to Default Prompts',
         copy: 'Copy',
         copied: 'Copied',
+        title_translation: 'AI Title Translation',
+        title_translation_hint: 'Translate article titles in the list (consumes small amount of tokens)',
+        title_translation_mode: 'Display Mode',
+        title_translation_bilingual: 'Bilingual',
+        title_translation_translated: 'Translated Only',
         not_configured: 'AI service not configured, please configure in settings'
     },
     theme: {

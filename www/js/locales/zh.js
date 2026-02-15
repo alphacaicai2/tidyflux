@@ -307,6 +307,11 @@ export default {
         reset_prompts: '恢复默认提示词',
         copy: '复制',
         copied: '已复制',
+        title_translation: 'AI 标题翻译',
+        title_translation_hint: '对文章列表中的标题进行翻译（消耗少量 Token）',
+        title_translation_mode: '显示模式',
+        title_translation_bilingual: '双语显示',
+        title_translation_translated: '仅显示翻译',
         not_configured: 'AI 服务未配置，请先在设置中配置'
     },
     theme: {

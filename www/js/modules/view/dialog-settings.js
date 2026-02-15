@@ -209,6 +209,27 @@ export const SettingsDialogMixin = {
                             <div style="font-size: 0.8em; color: var(--meta-color); margin-top: 4px; margin-left: 24px;">${i18n.t('ai.auto_summary_hint')}</div>
                         </div>
 
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9em; color: var(--text-primary);">
+                                <input type="checkbox" id="ai-title-translation" style="accent-color: var(--accent-color); width: 16px; height: 16px; cursor: pointer;">
+                                <span>${i18n.t('ai.title_translation')}</span>
+                            </label>
+                            <div style="font-size: 0.8em; color: var(--meta-color); margin-top: 4px; margin-left: 24px;">${i18n.t('ai.title_translation_hint')}</div>
+                            <div id="ai-title-translation-mode-container" style="display: none; margin-top: 8px; margin-left: 24px;">
+                                <label class="miniflux-input-label" style="font-size: 0.85em;">${i18n.t('ai.title_translation_mode')}</label>
+                                <div style="display: flex; gap: 8px;">
+                                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 0.85em; color: var(--text-primary);">
+                                        <input type="radio" name="title-translation-mode" value="bilingual" style="accent-color: var(--accent-color); cursor: pointer;">
+                                        ${i18n.t('ai.title_translation_bilingual')}
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 0.85em; color: var(--text-primary);">
+                                        <input type="radio" name="title-translation-mode" value="translated" style="accent-color: var(--accent-color); cursor: pointer;">
+                                        ${i18n.t('ai.title_translation_translated')}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="collapsible-section" style="margin-bottom: 16px;">
                             <button type="button" class="collapsible-toggle" style="background: none; border: none; padding: 0; color: var(--accent-color); font-size: 0.9em; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                                 <span class="toggle-icon">▶</span> ${i18n.t('settings.edit_config')}
@@ -572,6 +593,26 @@ export const SettingsDialogMixin = {
         const aiAutoSummaryCheckbox = dialog.querySelector('#ai-auto-summary');
         if (aiAutoSummaryCheckbox) aiAutoSummaryCheckbox.checked = !!aiConfig.autoSummary;
 
+        // 标题翻译开关
+        const aiTitleTranslationCheckbox = dialog.querySelector('#ai-title-translation');
+        const titleTranslationModeContainer = dialog.querySelector('#ai-title-translation-mode-container');
+        if (aiTitleTranslationCheckbox) {
+            aiTitleTranslationCheckbox.checked = !!aiConfig.titleTranslation;
+            // 根据开关状态显示/隐藏模式选择
+            if (titleTranslationModeContainer) {
+                titleTranslationModeContainer.style.display = aiConfig.titleTranslation ? 'block' : 'none';
+            }
+            // 设置模式选择的初始值
+            const modeRadio = dialog.querySelector(`input[name="title-translation-mode"][value="${aiConfig.titleTranslationMode || 'bilingual'}"]`);
+            if (modeRadio) modeRadio.checked = true;
+            // 监听开关变化，显示/隐藏模式选择
+            aiTitleTranslationCheckbox.addEventListener('change', () => {
+                if (titleTranslationModeContainer) {
+                    titleTranslationModeContainer.style.display = aiTitleTranslationCheckbox.checked ? 'block' : 'none';
+                }
+            });
+        }
+
         // Provider change handler
         aiProviderSelect.addEventListener('change', () => {
             updateProviderUI(aiProviderSelect.value);
@@ -674,7 +715,9 @@ export const SettingsDialogMixin = {
                     translatePrompt: aiTranslatePromptInput.value.trim(),
                     summarizePrompt: aiSummarizePromptInput.value.trim(),
                     digestPrompt: aiDigestPromptInput ? aiDigestPromptInput.value.trim() : (AIService.getConfig().digestPrompt || ''),
-                    autoSummary: dialog.querySelector('#ai-auto-summary')?.checked || false
+                    autoSummary: dialog.querySelector('#ai-auto-summary')?.checked || false,
+                    titleTranslation: dialog.querySelector('#ai-title-translation')?.checked || false,
+                    titleTranslationMode: dialog.querySelector('input[name="title-translation-mode"]:checked')?.value || 'bilingual'
                 };
 
                 try {
