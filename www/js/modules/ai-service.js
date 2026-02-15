@@ -89,7 +89,8 @@ export const AIService = {
             translatePrompt: '',
             summarizePrompt: '',
             digestPrompt: '',
-            targetLang: 'zh-CN'
+            targetLang: 'zh-CN',
+            autoSummary: false
         };
     },
 

@@ -14,6 +14,58 @@ import { AIService, AI_LANGUAGES } from '../ai-service.js';
 import { Icons } from '../icons.js';
 import { KeyboardShortcuts } from '../keyboard.js';
 
+// AI Provider configurations
+const AI_PROVIDERS = {
+    openai: {
+        name: 'OpenAI',
+        apiUrl: 'https://api.openai.com/v1',
+        models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+        hasRegion: false,
+        manualModel: false
+    },
+    openrouter: {
+        name: 'OpenRouter',
+        apiUrl: 'https://openrouter.ai/api/v1',
+        models: [], // OpenRouter has many models, user must input manually
+        hasRegion: false,
+        manualModel: true
+    },
+    gemini: {
+        name: 'Google Gemini',
+        apiUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        models: ['gemini-2.5-pro-preview-06-05', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+        hasRegion: false,
+        manualModel: false
+    },
+    minimax: {
+        name: 'MiniMax',
+        apiUrl: {
+            china: 'https://api.minimax.chat/v1',
+            international: 'https://api.minimaxi.com/v1'
+        },
+        models: ['MiniMax-Text-01', 'abab6.5s-chat', 'abab6.5g-chat', 'abab6.5t-chat', 'abab5.5-chat'],
+        hasRegion: true,
+        manualModel: false
+    },
+    zhipu: {
+        name: 'ZhiPu AI',
+        apiUrl: {
+            china: 'https://open.bigmodel.cn/api/paas/v4',
+            international: 'https://open.bigmodel.ai/api/paas/v4'
+        },
+        models: ['GLM-4-Plus', 'GLM-4-0520', 'GLM-4-Air', 'GLM-4-AirX', 'GLM-4-Flash', 'glm-4-plus', 'glm-4-flash'],
+        hasRegion: true,
+        manualModel: false
+    },
+    custom: {
+        name: 'Custom',
+        apiUrl: '',
+        models: [],
+        hasRegion: false,
+        manualModel: true
+    }
+};
+
 /**
  * 设置对话框相关方法
  * 通过 mixin 模式合并到 Dialogs 对象
@@ -95,19 +147,44 @@ export const SettingsDialogMixin = {
                 <div class="settings-section">
                     <div class="settings-section-title">${i18n.t('ai.settings_title')}</div>
                     <form id="ai-settings-form" autocomplete="off">
+                        <label class="miniflux-input-label">${i18n.t('ai.provider')}</label>
+                        <select id="ai-provider" class="dialog-select" style="margin-bottom: 8px;">
+                            <option value="openai">${i18n.t('ai.provider_openai')}</option>
+                            <option value="openrouter">${i18n.t('ai.provider_openrouter')}</option>
+                            <option value="gemini">${i18n.t('ai.provider_gemini')}</option>
+                            <option value="minimax">${i18n.t('ai.provider_minimax')}</option>
+                            <option value="zhipu">${i18n.t('ai.provider_zhipu')}</option>
+                            <option value="custom">${i18n.t('ai.provider_custom')}</option>
+                        </select>
+
+                        <div id="ai-region-container" style="display: none; margin-bottom: 8px;">
+                            <label class="miniflux-input-label">${i18n.t('ai.region')}</label>
+                            <select id="ai-region" class="dialog-select">
+                                <option value="china">${i18n.t('ai.region_china')}</option>
+                                <option value="international">${i18n.t('ai.region_international')}</option>
+                            </select>
+                        </div>
+
                         <label class="miniflux-input-label">${i18n.t('ai.api_url')}</label>
                         <input type="text" id="ai-api-url" class="auth-input" placeholder="https://api.openai.com/v1" style="margin-bottom: 8px;">
-                        
+
                         <label class="miniflux-input-label">${i18n.t('ai.api_key')}</label>
                         <input type="text" id="ai-api-key" class="auth-input auth-input-secret" placeholder="sk-..." style="margin-bottom: 8px;" autocomplete="off" spellcheck="false">
-                        
+
                         <label class="miniflux-input-label">${i18n.t('ai.model')}</label>
-                        <input type="text" id="ai-model" class="auth-input" placeholder="gpt-4.1-mini" style="margin-bottom: 8px;" autocomplete="off">
+                        <div id="ai-model-select-container">
+                            <select id="ai-model-select" class="dialog-select" style="margin-bottom: 8px;">
+                                <option value="">${i18n.t('ai.model_select')}</option>
+                            </select>
+                        </div>
+                        <div id="ai-model-input-container" style="display: none;">
+                            <input type="text" id="ai-model-input" class="auth-input" placeholder="${i18n.t('ai.model_input_placeholder')}" style="margin-bottom: 8px;" autocomplete="off">
+                        </div>
 
                         <div style="display: flex; gap: 12px; margin-bottom: 12px;">
                             <div style="flex: 1;">
                                 <label class="miniflux-input-label">${i18n.t('ai.temperature')}</label>
-                                <input type="number" id="ai-temperature" class="auth-input" min="0" max="2" step="0.1" placeholder="1.0">
+                                <input type="number" id="ai-temperature" class="auth-input" min="0" max="2" step="0.1" placeholder="0.7">
                             </div>
                             <div style="flex: 1;">
                                 <label class="miniflux-input-label">${i18n.t('ai.concurrency')}</label>
@@ -124,6 +201,14 @@ export const SettingsDialogMixin = {
                             </select>
                         </div>
 
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9em; color: var(--text-primary);">
+                                <input type="checkbox" id="ai-auto-summary" style="accent-color: var(--accent-color); width: 16px; height: 16px; cursor: pointer;">
+                                <span>${i18n.t('ai.auto_summary')}</span>
+                            </label>
+                            <div style="font-size: 0.8em; color: var(--meta-color); margin-top: 4px; margin-left: 24px;">${i18n.t('ai.auto_summary_hint')}</div>
+                        </div>
+
                         <div class="collapsible-section" style="margin-bottom: 16px;">
                             <button type="button" class="collapsible-toggle" style="background: none; border: none; padding: 0; color: var(--accent-color); font-size: 0.9em; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                                 <span class="toggle-icon">▶</span> ${i18n.t('settings.edit_config')}
@@ -131,7 +216,7 @@ export const SettingsDialogMixin = {
                             <div class="collapsible-content" style="display: none; margin-top: 12px;">
                                 <label class="miniflux-input-label">${i18n.t('ai.translate_prompt')}</label>
                                 <textarea id="ai-translate-prompt" class="auth-input" rows="3" placeholder="${i18n.t('ai.translate_prompt_placeholder')}" style="margin-bottom: 8px; resize: vertical; min-height: 80px;"></textarea>
-                                
+
                                 <label class="miniflux-input-label">${i18n.t('ai.summarize_prompt')}</label>
                                 <textarea id="ai-summarize-prompt" class="auth-input" rows="3" placeholder="${i18n.t('ai.summarize_prompt_placeholder')}" style="margin-bottom: 8px; resize: vertical; min-height: 80px;"></textarea>
 
@@ -141,13 +226,11 @@ export const SettingsDialogMixin = {
                             </div>
                         </div>
 
-
-
                         <div class="appearance-mode-group">
                             <button type="button" id="ai-test-btn" class="appearance-mode-btn" style="flex: 1;">${i18n.t('settings.test_connection')}</button>
                             <button type="submit" class="appearance-mode-btn active" style="flex: 1;">${i18n.t('common.save')}</button>
                         </div>
-                        <div id="ai-settings-msg" style="text-align: center; margin-top: 8px; font-size: 0.85em;"></div>
+                        <div id="ai-settings-msg" style="margin-top: 8px; font-size: 0.8em; line-height: 1.5;"></div>
                     </form>
                 </div>
                 
@@ -339,9 +422,15 @@ export const SettingsDialogMixin = {
      */
     _bindAISettingsEvents(dialog) {
         const aiForm = dialog.querySelector('#ai-settings-form');
+        const aiProviderSelect = dialog.querySelector('#ai-provider');
+        const aiRegionContainer = dialog.querySelector('#ai-region-container');
+        const aiRegionSelect = dialog.querySelector('#ai-region');
         const aiUrlInput = dialog.querySelector('#ai-api-url');
         const aiKeyInput = dialog.querySelector('#ai-api-key');
-        const aiModelInput = dialog.querySelector('#ai-model');
+        const aiModelSelectContainer = dialog.querySelector('#ai-model-select-container');
+        const aiModelInputContainer = dialog.querySelector('#ai-model-input-container');
+        const aiModelSelect = dialog.querySelector('#ai-model-select');
+        const aiModelInput = dialog.querySelector('#ai-model-input');
         const aiTemperatureInput = dialog.querySelector('#ai-temperature');
         const aiConcurrencyInput = dialog.querySelector('#ai-concurrency');
         const aiTargetLangSelect = dialog.querySelector('#ai-target-lang');
@@ -356,13 +445,109 @@ export const SettingsDialogMixin = {
         const defaultTranslatePrompt = AIService.getDefaultPrompt('translate');
         const defaultSummarizePrompt = AIService.getDefaultPrompt('summarize');
 
+        // Helper: Detect provider from API URL
+        const detectProviderFromUrl = (url) => {
+            if (!url) return 'openai';
+            if (url.includes('openrouter.ai')) return 'openrouter';
+            if (url.includes('generativelanguage.googleapis.com')) return 'gemini';
+            if (url.includes('minimax.chat')) return 'minimax';
+            if (url.includes('minimaxi.com')) return 'minimax';
+            if (url.includes('bigmodel.cn') || url.includes('bigmodel.ai')) return 'zhipu';
+            if (url.includes('openai.com')) return 'openai';
+            return 'custom';
+        };
+
+        // Helper: Get current model value
+        const getCurrentModel = () => {
+            const provider = aiProviderSelect.value;
+            const providerConfig = AI_PROVIDERS[provider];
+            if (providerConfig.manualModel) {
+                return aiModelInput.value.trim();
+            }
+            return aiModelSelect.value;
+        };
+
+        // Helper: Set model value
+        const setModelValue = (model) => {
+            const provider = aiProviderSelect.value;
+            const providerConfig = AI_PROVIDERS[provider];
+            if (providerConfig.manualModel) {
+                aiModelInput.value = model;
+            } else {
+                aiModelSelect.value = model;
+            }
+        };
+
+        // Helper: Update UI based on provider
+        const updateProviderUI = (provider, preserveUrl = false) => {
+            const providerConfig = AI_PROVIDERS[provider];
+
+            // Show/hide region selector
+            if (providerConfig.hasRegion) {
+                aiRegionContainer.style.display = 'block';
+            } else {
+                aiRegionContainer.style.display = 'none';
+            }
+
+            // Update API URL
+            if (!preserveUrl && provider !== 'custom') {
+                if (providerConfig.hasRegion) {
+                    const region = aiRegionSelect.value;
+                    aiUrlInput.value = providerConfig.apiUrl[region];
+                } else {
+                    aiUrlInput.value = providerConfig.apiUrl;
+                }
+            }
+
+            // Update model selection UI
+            if (providerConfig.manualModel) {
+                aiModelSelectContainer.style.display = 'none';
+                aiModelInputContainer.style.display = 'block';
+            } else {
+                aiModelSelectContainer.style.display = 'block';
+                aiModelInputContainer.style.display = 'none';
+
+                // Populate model dropdown
+                aiModelSelect.innerHTML = providerConfig.models.map(m =>
+                    `<option value="${m}">${m}</option>`
+                ).join('');
+            }
+
+            // Disable URL input for non-custom providers
+            if (provider === 'custom') {
+                aiUrlInput.removeAttribute('readonly');
+                aiUrlInput.style.opacity = '1';
+            } else {
+                aiUrlInput.setAttribute('readonly', 'true');
+                aiUrlInput.style.opacity = '0.7';
+            }
+        };
+
+        // Initialize from saved config
+        const savedProvider = aiConfig.provider || detectProviderFromUrl(aiConfig.apiUrl);
+        aiProviderSelect.value = savedProvider;
+
+        // Set region if applicable
+        if (aiConfig.apiUrl) {
+            if (aiConfig.apiUrl.includes('minimaxi.com') || aiConfig.apiUrl.includes('bigmodel.ai')) {
+                aiRegionSelect.value = 'international';
+            } else {
+                aiRegionSelect.value = 'china';
+            }
+        }
+
+        updateProviderUI(savedProvider, true);
+
         if (aiUrlInput) aiUrlInput.value = aiConfig.apiUrl || '';
         if (aiKeyInput) aiKeyInput.value = aiConfig.apiKey || '';
-        if (aiModelInput) aiModelInput.value = aiConfig.model || 'gpt-4.1-mini';
+        if (aiConfig.model) setModelValue(aiConfig.model);
+        else if (!AI_PROVIDERS[savedProvider].manualModel && AI_PROVIDERS[savedProvider].models.length > 0) {
+            setModelValue(AI_PROVIDERS[savedProvider].models[0]);
+        }
 
-        // 温度和并发初始化
+        // 温度默认值改为 0.7
         if (aiTemperatureInput) {
-            aiTemperatureInput.value = aiConfig.temperature ?? 1;
+            aiTemperatureInput.value = aiConfig.temperature ?? 0.7;
         }
         if (aiConcurrencyInput) {
             aiConcurrencyInput.value = aiConfig.concurrency ?? 5;
@@ -375,6 +560,24 @@ export const SettingsDialogMixin = {
 
         if (aiTranslatePromptInput) aiTranslatePromptInput.value = aiConfig.translatePrompt || defaultTranslatePrompt;
         if (aiSummarizePromptInput) aiSummarizePromptInput.value = aiConfig.summarizePrompt || defaultSummarizePrompt;
+
+        // 自动摘要开关
+        const aiAutoSummaryCheckbox = dialog.querySelector('#ai-auto-summary');
+        if (aiAutoSummaryCheckbox) aiAutoSummaryCheckbox.checked = !!aiConfig.autoSummary;
+
+        // Provider change handler
+        aiProviderSelect.addEventListener('change', () => {
+            updateProviderUI(aiProviderSelect.value);
+        });
+
+        // Region change handler
+        aiRegionSelect.addEventListener('change', () => {
+            const provider = aiProviderSelect.value;
+            const providerConfig = AI_PROVIDERS[provider];
+            if (providerConfig.hasRegion) {
+                aiUrlInput.value = providerConfig.apiUrl[aiRegionSelect.value];
+            }
+        });
 
         // 折叠面板切换
         if (collapsibleToggle) {
@@ -403,31 +606,41 @@ export const SettingsDialogMixin = {
         const aiTestBtn = dialog.querySelector('#ai-test-btn');
         if (aiTestBtn) {
             aiTestBtn.addEventListener('click', async () => {
+                const model = getCurrentModel();
                 const config = {
                     apiUrl: aiUrlInput.value.trim(),
                     apiKey: aiKeyInput.value.trim(),
-                    model: aiModelInput.value.trim(),
+                    model: model,
                     targetLang: aiTargetLangSelect.value
                 };
 
-                if (!config.apiUrl || !config.apiKey) {
-                    aiMsg.textContent = i18n.t('settings.fill_all_info');
-                    aiMsg.style.color = 'var(--danger-color)';
+                if (!config.apiUrl || !config.apiKey || !config.model) {
+                    aiMsg.innerHTML = `<span style="color: var(--danger-color);">${i18n.t('settings.fill_all_info')}</span>`;
                     return;
                 }
 
                 aiTestBtn.disabled = true;
                 const originalText = aiTestBtn.textContent;
                 aiTestBtn.textContent = i18n.t('settings.testing');
-                aiMsg.textContent = '';
+                aiMsg.innerHTML = `<span style="color: var(--meta-color);">${i18n.t('settings.testing')}</span>`;
 
+                const startTime = Date.now();
                 try {
                     const result = await AIService.testConnection(config);
-                    aiMsg.textContent = `✓ Success! Reply: "${result.reply}"`;
-                    aiMsg.style.color = 'var(--accent-color)';
+                    const latency = Date.now() - startTime;
+                    aiMsg.innerHTML = `
+                        <span style="color: var(--accent-color);">✓ ${i18n.t('ai.test_success')}</span>
+                        <br><span style="color: var(--meta-color); font-size: 0.9em;">
+                        ${i18n.t('ai.test_latency')}: ${latency}ms |
+                        ${i18n.t('ai.test_response')}: "${result.reply?.substring(0, 50)}${result.reply?.length > 50 ? '...' : ''}"
+                        </span>
+                    `;
                 } catch (err) {
-                    aiMsg.textContent = err.message;
-                    aiMsg.style.color = 'var(--danger-color)';
+                    const latency = Date.now() - startTime;
+                    aiMsg.innerHTML = `
+                        <span style="color: var(--danger-color);">✗ ${err.message}</span>
+                        <br><span style="color: var(--meta-color); font-size: 0.9em;">${i18n.t('ai.test_latency')}: ${latency}ms</span>
+                    `;
                 } finally {
                     aiTestBtn.disabled = false;
                     aiTestBtn.textContent = originalText;
@@ -440,30 +653,32 @@ export const SettingsDialogMixin = {
             aiForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
 
+                const model = getCurrentModel();
                 const config = {
+                    provider: aiProviderSelect.value,
+                    region: aiRegionSelect.value,
                     apiUrl: aiUrlInput.value.trim(),
                     apiKey: aiKeyInput.value.trim(),
-                    model: aiModelInput.value.trim(),
-                    temperature: parseFloat(aiTemperatureInput?.value) || 1,
+                    model: model,
+                    temperature: parseFloat(aiTemperatureInput?.value) || 0.7,
                     concurrency: parseInt(aiConcurrencyInput?.value) || 5,
                     targetLang: aiTargetLangSelect.value,
                     translatePrompt: aiTranslatePromptInput.value.trim(),
                     summarizePrompt: aiSummarizePromptInput.value.trim(),
-                    digestPrompt: AIService.getConfig().digestPrompt || ''
+                    digestPrompt: AIService.getConfig().digestPrompt || '',
+                    autoSummary: dialog.querySelector('#ai-auto-summary')?.checked || false
                 };
 
                 try {
                     await AIService.saveConfig(config);
-                    aiMsg.textContent = `✓ ${i18n.t('ai.save_success')}`;
-                    aiMsg.style.color = 'var(--accent-color)';
+                    aiMsg.innerHTML = `<span style="color: var(--accent-color);">✓ ${i18n.t('ai.save_success')}</span>`;
                 } catch (err) {
                     console.error('Save AI settings error:', err);
-                    aiMsg.textContent = `${i18n.t('ai.api_error')}`;
-                    aiMsg.style.color = 'var(--danger-color)';
+                    aiMsg.innerHTML = `<span style="color: var(--danger-color);">${i18n.t('ai.api_error')}</span>`;
                 }
 
                 setTimeout(() => {
-                    aiMsg.textContent = '';
+                    aiMsg.innerHTML = '';
                 }, 3000);
             });
         }
