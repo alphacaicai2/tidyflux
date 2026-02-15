@@ -7,9 +7,11 @@
 import { i18n } from '../i18n.js';
 import { AuthManager } from '../auth-manager.js';
 import { AIService } from '../ai-service.js';
-import { showToast } from './utils.js';
+import { AppState } from '../../state.js';
+import { showToast, createDialog } from './utils.js';
 import { Modal } from './components.js';
 import { Dialogs } from './dialogs.js';
+import { Icons } from '../icons.js';
 
 /**
  * 简报视图管理
@@ -30,8 +32,9 @@ export const DigestView = {
      * @param {string} scope - 'all' | 'feed' | 'group'
      * @param {number} feedId - 订阅源 ID
      * @param {number} groupId - 分组 ID
+     * @param {number} hours - 时间范围（小时），0 表示所有文章；12/24/72/168 对应 12h/24h/3d/7d
      */
-    async generate(scope = 'all', feedId = null, groupId = null) {
+    async generate(scope = 'all', feedId = null, groupId = null, hours = 12) {
         // 检查 AI 配置
         if (!AIService.isConfigured()) {
             await Modal.alertWithSettings(i18n.t('digest.ai_not_configured'), i18n.t('common.go_to_settings'), () => Dialogs.showSettingsDialog(false));
@@ -54,7 +57,7 @@ export const DigestView = {
                     scope,
                     feedId,
                     groupId,
-                    hours: 12,
+                    hours: hours || 12,
                     targetLang: AIService.getLanguageName(aiConfig.targetLang || 'zh-CN'),
                     prompt: aiConfig.digestPrompt
                 })
@@ -160,5 +163,110 @@ export const DigestView = {
      */
     generateAll() {
         this.generate('all', null, null);
+    },
+
+    /**
+     * 显示「生成简报」对话框：选择目标分组 + 时间范围后生成
+     * @param {Object} context - { feedId, groupId } 预选范围，空则「全部」
+     */
+    showGenerateDialog(context = {}) {
+        const { feedId, groupId } = context;
+        let scope = 'all';
+        let scopeId = null;
+        if (groupId) {
+            scope = 'group';
+            scopeId = groupId;
+        } else if (feedId) {
+            scope = 'feed';
+            scopeId = feedId;
+        }
+
+        const groups = AppState.groups || [];
+        const feeds = AppState.feeds || [];
+        const initialScopeValue = scope === 'all' ? 'all' : `${scope}_${scopeId}`;
+
+        let scopeOptionsHtml = `<option value="all">${i18n.t('nav.all')}</option>`;
+        if (groups.length > 0) {
+            scopeOptionsHtml += `<optgroup label="${i18n.t('nav.categories')}">`;
+            groups.forEach(g => {
+                scopeOptionsHtml += `<option value="group_${g.id}">${g.name}</option>`;
+            });
+            scopeOptionsHtml += `</optgroup>`;
+        }
+        if (feeds.length > 0) {
+            scopeOptionsHtml += `<optgroup label="${i18n.t('nav.feeds')}">`;
+            groups.forEach(g => {
+                const groupFeeds = feeds.filter(f => f.category?.id == g.id);
+                groupFeeds.forEach(f => {
+                    scopeOptionsHtml += `<option value="feed_${f.id}">${f.title}</option>`;
+                });
+            });
+            const ungroupedFeeds = feeds.filter(f => !f.category?.id || !groups.find(g => g.id == f.category?.id));
+            ungroupedFeeds.forEach(f => {
+                scopeOptionsHtml += `<option value="feed_${f.id}">${f.title}</option>`;
+            });
+            scopeOptionsHtml += `</optgroup>`;
+        }
+
+        const rangeOptionsHtml = [
+            { value: 12, key: 'range_12h' },
+            { value: 24, key: 'range_24h' },
+            { value: 72, key: 'range_3d' },
+            { value: 168, key: 'range_7d' },
+            { value: 0, key: 'range_all' }
+        ].map(r => `<option value="${r.value}">${i18n.t(`digest.${r.key}`)}</option>`).join('');
+
+        const { dialog, close } = createDialog('settings-dialog', `
+            <div class="settings-dialog-content" style="position: relative; max-width: 360px;">
+                <button class="icon-btn close-dialog-btn" title="${i18n.t('settings.close')}" style="position: absolute; right: 16px; top: 16px; width: 32px; height: 32px;">
+                    ${Icons.close}
+                </button>
+                <h3>${i18n.t('digest.generate')}</h3>
+                <div style="margin-bottom: 16px;">
+                    <div class="settings-item-label" style="margin-bottom: 8px;">${i18n.t('digest.select_target')}</div>
+                    <select id="generate-scope-select" class="dialog-select">
+                        ${scopeOptionsHtml}
+                    </select>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <div class="settings-item-label" style="margin-bottom: 8px;">${i18n.t('digest.time_range')}</div>
+                    <select id="generate-range-select" class="dialog-select">
+                        ${rangeOptionsHtml}
+                    </select>
+                </div>
+                <div class="appearance-mode-group">
+                    <button type="button" id="generate-digest-submit" class="appearance-mode-btn active" style="justify-content: center; width: 100%;">
+                        ${i18n.t('digest.generate')}
+                    </button>
+                </div>
+            </div>
+        `);
+
+        const scopeSelect = dialog.querySelector('#generate-scope-select');
+        const rangeSelect = dialog.querySelector('#generate-range-select');
+        const submitBtn = dialog.querySelector('#generate-digest-submit');
+
+        scopeSelect.value = initialScopeValue;
+
+        submitBtn.addEventListener('click', () => {
+            const val = scopeSelect.value;
+            let scope = 'all', feedId = null, groupId = null;
+            if (val !== 'all') {
+                const [s, ...idParts] = val.split('_');
+                const id = idParts.join('_');
+                if (s === 'group') {
+                    scope = 'group';
+                    groupId = parseInt(id, 10);
+                } else if (s === 'feed') {
+                    scope = 'feed';
+                    feedId = parseInt(id, 10);
+                }
+            }
+            const hours = parseInt(rangeSelect.value, 10);
+            close();
+            this.generate(scope, feedId, groupId, isNaN(hours) ? 12 : hours);
+        });
+
+        dialog.querySelector('.close-dialog-btn').addEventListener('click', close);
     }
 };

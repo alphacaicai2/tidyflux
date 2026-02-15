@@ -66,6 +66,19 @@ async function startServer() {
 
         // Serve static files from www directory
         const wwwPath = join(__dirname, '..', '..', 'www');
+        const isDev = process.env.NODE_ENV !== 'production';
+
+        // 开发环境下 JS/CSS/HTML 不缓存，刷新即可看到修改
+        if (isDev) {
+            app.use((req, res, next) => {
+                if (/\.(js|css|html?)$/i.test(req.path)) {
+                    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+                    res.set('Pragma', 'no-cache');
+                    res.set('Expires', '0');
+                }
+                next();
+            });
+        }
 
         // Service Worker 必须禁用缓存，确保浏览器每次都检查更新
         app.get('/sw.js', (req, res) => {

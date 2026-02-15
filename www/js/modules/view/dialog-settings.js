@@ -80,6 +80,8 @@ export const SettingsDialogMixin = {
         const currentTheme = AppState.preferences?.theme || 'default';
         const currentColorScheme = AppState.preferences?.color_scheme || 'auto';
         const currentLang = i18n.locale;
+        const currentDefaultHome = AppState.preferences?.default_home || 'all';
+        const currentDefaultUnreadOnly = AppState.preferences?.default_show_unread_only !== false;
 
         const langSelectOptions = [
             { id: 'zh', name: '简体中文' },
@@ -142,6 +144,22 @@ export const SettingsDialogMixin = {
                             ${colorModeOptions}
                         </div>
                     </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title">${i18n.t('settings.home_and_list')}</div>
+                    <label class="miniflux-input-label">${i18n.t('settings.default_home')}</label>
+                    <select id="settings-default-home" class="dialog-select" style="margin-bottom: 12px;">
+                        <option value="all" ${currentDefaultHome === 'all' ? 'selected' : ''}>${i18n.t('settings.default_home_all')}</option>
+                        <option value="all_groups" ${currentDefaultHome === 'all_groups' ? 'selected' : ''}>${i18n.t('settings.default_home_all_groups')}</option>
+                        <option value="favorites" ${currentDefaultHome === 'favorites' ? 'selected' : ''}>${i18n.t('settings.default_home_favorites')}</option>
+                        <option value="digests" ${currentDefaultHome === 'digests' ? 'selected' : ''}>${i18n.t('settings.default_home_digests')}</option>
+                        ${(AppState.groups || []).map(g => `<option value="group_${g.id}" ${currentDefaultHome === 'group_' + g.id ? ' selected' : ''}>${i18n.t('settings.group_label')}: ${g.name}</option>`).join('')}
+                    </select>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9em; color: var(--text-primary);">
+                        <input type="checkbox" id="settings-default-unread-only" style="accent-color: var(--accent-color); width: 16px; height: 16px; cursor: pointer;" ${currentDefaultUnreadOnly ? 'checked' : ''}>
+                        <span>${i18n.t('settings.default_show_unread_only')}</span>
+                    </label>
                 </div>
 
                 <div class="settings-section">
@@ -394,6 +412,34 @@ export const SettingsDialogMixin = {
             });
         }
 
+        // 首页默认显示
+        const defaultHomeSelect = dialog.querySelector('#settings-default-home');
+        if (defaultHomeSelect) {
+            defaultHomeSelect.addEventListener('change', async () => {
+                const value = defaultHomeSelect.value;
+                AppState.preferences = AppState.preferences || {};
+                AppState.preferences.default_home = value;
+                try {
+                    await FeedManager.setPreference('default_home', value);
+                } catch (err) {
+                    console.error('Save default_home error:', err);
+                }
+            });
+        }
+        // 默认只显示未读
+        const defaultUnreadCheckbox = dialog.querySelector('#settings-default-unread-only');
+        if (defaultUnreadCheckbox) {
+            defaultUnreadCheckbox.addEventListener('change', async () => {
+                const value = defaultUnreadCheckbox.checked;
+                AppState.preferences = AppState.preferences || {};
+                AppState.preferences.default_show_unread_only = value;
+                try {
+                    await FeedManager.setPreference('default_show_unread_only', value);
+                } catch (err) {
+                    console.error('Save default_show_unread_only error:', err);
+                }
+            });
+        }
 
         // AI 设置逻辑
         if (showFullSettings) {

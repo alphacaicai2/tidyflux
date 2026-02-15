@@ -132,12 +132,18 @@ export const FeedsView = {
     renderFeedsList(feeds, groups = [], digestsData = null) {
         const totalUnread = feeds.reduce((sum, f) => sum + (f.unread_count || 0), 0);
 
-        // 固定项：全部文章和收藏
+        // 固定项：全部文章、所有分组、收藏、简报
+        const isAllActive = !AppState.currentFeedId && !AppState.viewingFavorites && !AppState.currentGroupId;
         let html = `
-            <button class="feed-item-btn ${!AppState.currentFeedId && !AppState.viewingFavorites && !AppState.currentGroupId ? 'active' : ''}" data-feed-id="">
+            <button class="feed-item-btn ${isAllActive ? 'active' : ''}" data-feed-id="">
                 ${Icons.list}
                 <span class="feed-name">${i18n.t('nav.all')}</span>
                 ${totalUnread > 0 ? `<span class="feed-unread-count all-unread-count">${totalUnread}</span>` : ''}
+            </button>
+            <button class="feed-item-btn ${isAllActive ? 'active' : ''}" data-feed-id="" data-all-groups="1">
+                ${Icons.list}
+                <span class="feed-name">${i18n.t('nav.all_groups')}</span>
+                ${totalUnread > 0 ? `<span class="feed-unread-count all-groups-unread-count">${totalUnread}</span>` : ''}
             </button>
             <button class="feed-item-btn ${AppState.viewingFavorites ? 'active' : ''}" id="favorites-btn">
                 ${Icons.star}
@@ -163,19 +169,16 @@ export const FeedsView = {
         });
 
         const collapsedGroups = this.getCollapsedGroups();
-        const pinnedGroups = this.getPinnedGroups();
+        const groupOrder = this.getGroupOrder();
 
-        // 排序分组：置顶的在前
+        // 排序分组：按 group_order，未在 order 中的排在末尾
         const sortedGroups = [...groups].sort((a, b) => {
-            const aIdx = pinnedGroups.indexOf(a.id);
-            const bIdx = pinnedGroups.indexOf(b.id);
-            const aIsPinned = aIdx !== -1;
-            const bIsPinned = bIdx !== -1;
-
-            if (aIsPinned && !bIsPinned) return -1;
-            if (!aIsPinned && bIsPinned) return 1;
-            if (aIsPinned && bIsPinned) return aIdx - bIdx;
-            return 0;
+            const aIdx = groupOrder.indexOf(a.id);
+            const bIdx = groupOrder.indexOf(b.id);
+            if (aIdx === -1 && bIdx === -1) return 0;
+            if (aIdx === -1) return 1;
+            if (bIdx === -1) return -1;
+            return aIdx - bIdx;
         });
 
         // 渲染分组
@@ -188,6 +191,7 @@ export const FeedsView = {
             groupsHtml += `
                 <div class="feed-group ${isCollapsed ? 'collapsed' : ''}" data-group-id="${g.id}">
                     <div class="feed-group-header">
+                        <span class="group-drag-handle-wrap" draggable="true" data-group-id="${g.id}" title="${i18n.t('nav.drag_to_sort')}">${Icons.drag_handle}</span>
                         ${Icons.chevron_down}
                         <span class="feed-group-name" data-group-id="${g.id}">${g.name}</span>
                         ${gUnread > 0 ? `<span class="feed-group-count">${gUnread}</span>` : ''}
@@ -240,10 +244,12 @@ export const FeedsView = {
      * @param {Array} groups - 分组数组
      */
     updateUnreadCounts(feeds, groups, digestsData = null) {
-        // 更新全部文章计数
+        // 更新全部文章 / 所有分组 计数
         const totalUnread = feeds.reduce((sum, f) => sum + (f.unread_count || 0), 0);
-        const allBtn = DOMElements.feedsList.querySelector('.feed-item-btn[data-feed-id=""]');
-        this._updateBadge(allBtn, totalUnread, 'feed-unread-count all-unread-count');
+        DOMElements.feedsList.querySelectorAll('.feed-item-btn[data-feed-id=""]').forEach(btn => {
+            const cls = btn.dataset.allGroups ? 'feed-unread-count all-groups-unread-count' : 'feed-unread-count all-unread-count';
+            this._updateBadge(btn, totalUnread, cls);
+        });
 
         // 优化：一次性建立映射，避免在循环中重复查询 DOM
         const feedUnreadMap = new Map(feeds.map(f => [String(f.id), f.unread_count || 0]));
@@ -417,8 +423,8 @@ export const FeedsView = {
 
             // 分组点击 (包含名称和未读数)
             header.addEventListener('click', (e) => {
-                // 如果是折叠图标触发的（已有单独处理），则忽略
-                if (e.target.closest('.fold-icon')) return;
+                // 如果是折叠图标或拖拽把手触发的，则忽略
+                if (e.target.closest('.fold-icon') || e.target.closest('.group-drag-handle-wrap')) return;
 
                 e.stopPropagation();
                 const group = header.closest('.feed-group');
@@ -440,6 +446,63 @@ export const FeedsView = {
                     vm.showGroupContextMenu(e, groupId);
                 });
             }
+        });
+
+        // 分组拖拽排序
+        const feedGroups = DOMElements.feedsList.querySelectorAll('.feed-group');
+        feedGroups.forEach(groupEl => {
+            const handle = groupEl.querySelector('.group-drag-handle-wrap');
+            if (!handle) return;
+
+            handle.addEventListener('dragstart', (e) => {
+                e.stopPropagation();
+                const groupId = handle.dataset.groupId;
+                e.dataTransfer.setData('text/plain', groupId);
+                e.dataTransfer.effectAllowed = 'move';
+                groupEl.classList.add('feed-group-dragging');
+            });
+
+            handle.addEventListener('dragend', () => {
+                groupEl.classList.remove('feed-group-dragging');
+                DOMElements.feedsList.querySelectorAll('.feed-group').forEach(el => el.classList.remove('feed-group-drag-over'));
+            });
+        });
+
+        feedGroups.forEach(groupEl => {
+            groupEl.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const dragging = DOMElements.feedsList.querySelector('.feed-group-dragging');
+                if (dragging && dragging !== groupEl) {
+                    groupEl.classList.add('feed-group-drag-over');
+                }
+            });
+
+            groupEl.addEventListener('dragleave', (e) => {
+                if (!groupEl.contains(e.relatedTarget)) {
+                    groupEl.classList.remove('feed-group-drag-over');
+                }
+            });
+
+            groupEl.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                groupEl.classList.remove('feed-group-drag-over');
+                const sourceId = e.dataTransfer.getData('text/plain');
+                const targetId = groupEl.dataset.groupId;
+                if (!sourceId || !targetId || sourceId === targetId) return;
+
+                const currentOrder = Array.from(DOMElements.feedsList.querySelectorAll('.feed-group')).map(el => parseInt(el.dataset.groupId, 10));
+                const order = this.getGroupOrder();
+                const fullOrder = currentOrder.length > 0 ? currentOrder : [...(order || []), ...(AppState.groups || []).map(g => g.id).filter(id => !(order || []).includes(id))];
+                const sourceIdx = fullOrder.indexOf(parseInt(sourceId, 10));
+                const targetIdx = fullOrder.indexOf(parseInt(targetId, 10));
+                if (sourceIdx === -1 || targetIdx === -1) return;
+
+                const newOrder = fullOrder.slice();
+                newOrder.splice(sourceIdx, 1);
+                newOrder.splice(targetIdx, 0, parseInt(sourceId, 10));
+                await this.setGroupOrder(newOrder);
+            });
         });
     },
 
@@ -582,6 +645,35 @@ export const FeedsView = {
         } catch (err) {
             console.error('Save collapsed state error:', err);
         }
+    },
+
+    /**
+     * 获取分组显示顺序（用于拖拽排序）
+     * @returns {Array<number>} 分组 id 顺序
+     */
+    getGroupOrder() {
+        if (AppState.preferences && Array.isArray(AppState.preferences.group_order)) {
+            return AppState.preferences.group_order;
+        }
+        return [];
+    },
+
+    /**
+     * 设置分组显示顺序并持久化
+     * @param {Array<number>} order - 分组 id 顺序
+     */
+    async setGroupOrder(order) {
+        AppState.preferences = AppState.preferences || {};
+        AppState.preferences.group_order = order;
+        try {
+            await FeedManager.setPreference('group_order', order);
+        } catch (err) {
+            console.error('Sync group_order error:', err);
+        }
+        // 重新渲染订阅列表以应用新顺序
+        const data = { feeds: AppState.feeds, groups: AppState.groups, digestsData: null };
+        this.renderFeedsList(data.feeds, data.groups, null);
+        this.bindFeedsListEvents();
     },
 
     /**

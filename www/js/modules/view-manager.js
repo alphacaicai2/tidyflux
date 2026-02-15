@@ -259,7 +259,8 @@ export const ViewManager = {
 
         const filterKey = feedId ? `feed_${feedId}` : 'all';
         const saved = this.loadFilterSetting(filterKey);
-        AppState.showUnreadOnly = saved !== null ? saved : true;
+        const defaultUnread = AppState.preferences?.default_show_unread_only !== false;
+        AppState.showUnreadOnly = saved !== null ? saved : defaultUnread;
 
         this.updateSidebarActiveState({ feedId });
 
@@ -298,7 +299,8 @@ export const ViewManager = {
         AppState.viewingDigests = false;
 
         const saved = this.loadFilterSetting(`group_${groupId}`);
-        AppState.showUnreadOnly = saved !== null ? saved : true;
+        const defaultUnread = AppState.preferences?.default_show_unread_only !== false;
+        AppState.showUnreadOnly = saved !== null ? saved : defaultUnread;
 
         this.updateSidebarActiveState({ groupId });
 
@@ -503,8 +505,8 @@ export const ViewManager = {
 
     // ==================== Digest 相关 ====================
 
-    generateDigest(scope = 'all', feedId = null, groupId = null) {
-        DigestView.generate(scope, feedId, groupId);
+    generateDigest(scope = 'all', feedId = null, groupId = null, hours = 12) {
+        DigestView.generate(scope, feedId, groupId, hours);
     },
 
     generateDigestForFeed(feedId) {
@@ -513,6 +515,11 @@ export const ViewManager = {
 
     generateDigestForGroup(groupId) {
         DigestView.generateForGroup(groupId);
+    },
+
+    /** 显示生成简报对话框（选择目标 + 时间范围） */
+    showGenerateDigestDialog(context = {}) {
+        DigestView.showGenerateDialog(context);
     },
 
     // ==================== Dialog 相关 ====================

@@ -326,18 +326,14 @@ export const ContextMenu = {
                     isManualRefreshing = false;
                 }
             } else if (action === 'generate-digest-all') {
-                // 手动触发生成全部简报
-                this.viewManager.generateDigest('all');
+                this.viewManager.showGenerateDigestDialog({});
             } else if (action === 'manage-scheduled-digests') {
                 Dialogs.showDigestManagerDialog();
             } else if (action === 'generate-digest') {
-                if (AppState.currentFeedId) {
-                    this.viewManager.generateDigestForFeed(AppState.currentFeedId);
-                } else if (AppState.currentGroupId) {
-                    this.viewManager.generateDigestForGroup(AppState.currentGroupId);
-                } else {
-                    this.viewManager.generateDigest('all');
-                }
+                this.viewManager.showGenerateDigestDialog({
+                    feedId: AppState.currentFeedId,
+                    groupId: AppState.currentGroupId
+                });
             } else if (action === 'schedule-digest') {
                 this.viewManager.showDigestScheduleDialog({
                     feedId: AppState.currentFeedId,

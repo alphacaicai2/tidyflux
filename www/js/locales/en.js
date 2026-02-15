@@ -42,7 +42,9 @@ export default {
         logout: 'Logout',
         search_placeholder: 'Search articles...',
         article_list: 'Article List',
-        group_articles: 'Group Articles'
+        group_articles: 'Group Articles',
+        all_groups: 'All groups',
+        drag_to_sort: 'Drag to sort'
     },
     settings: {
         title: 'Settings',
@@ -57,6 +59,14 @@ export default {
         theme_color: 'Theme Color',
         mode: 'Mode',
         auto: 'Auto',
+        home_and_list: 'Home & list',
+        default_home: 'Default view on open',
+        default_home_all: 'All articles',
+        default_home_all_groups: 'All groups',
+        default_home_favorites: 'Starred',
+        default_home_digests: 'Digests',
+        default_show_unread_only: 'Show unread only by default',
+        group_label: 'Group',
         light: 'Light',
         dark: 'Dark',
         group_management: 'Group Management',
@@ -323,6 +333,7 @@ export default {
     },
     digest: {
         title: 'Digests',
+        ai_not_configured: 'AI service not configured, please configure in settings',
         generating: 'Generating, please check back later',
         generated: 'Digest generated',
         success: 'Digest generated successfully, click to view',
@@ -356,6 +367,15 @@ export default {
         schedule_frequency: 'Frequency',
         schedule_status: 'Status',
         status_enabled: 'Enabled',
-        status_disabled: 'Disabled'
+        status_disabled: 'Disabled',
+        select_target: 'Target',
+        time_range: 'Time range',
+        range_12h: 'Last 12 hours',
+        range_24h: 'Last 24 hours',
+        range_3d: 'Past 3 days',
+        range_7d: 'Past 7 days',
+        range_all: 'All articles',
+        run_now: 'Run now',
+        manager_success: 'Digest generated successfully'
     }
 };

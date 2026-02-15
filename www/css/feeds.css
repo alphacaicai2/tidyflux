@@ -167,3 +167,39 @@
 .feed-group.collapsed .feed-group-items {
     display: none;
 }
+
+/* 分组拖拽排序 */
+.group-drag-handle-wrap {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    margin: -2px 2px -2px -2px;
+    border-radius: 4px;
+}
+
+.group-drag-handle-wrap:hover {
+    background: var(--hover-bg);
+}
+
+.group-drag-handle-wrap:active {
+    cursor: grabbing;
+}
+
+.feed-group-dragging {
+    opacity: 0.6;
+}
+
+.feed-group-drag-over .feed-group-header {
+    outline: 2px dashed var(--accent-color);
+    outline-offset: 2px;
+}
+
+.all-groups-unread-count {
+    background: var(--bg-color);
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-weight: 600;
+    margin-left: auto;
+    font-size: 0.75em;
+    color: var(--meta-color);
+}

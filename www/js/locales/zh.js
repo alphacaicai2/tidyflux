@@ -42,7 +42,9 @@ export default {
         logout: '退出登录',
         search_placeholder: '搜索文章...',
         article_list: '文章列表',
-        group_articles: '分组文章'
+        group_articles: '分组文章',
+        all_groups: '所有分组',
+        drag_to_sort: '拖拽排序'
     },
     settings: {
         title: '设置',
@@ -57,6 +59,14 @@ export default {
         theme_color: '主题色',
         mode: '模式',
         auto: '自动',
+        home_and_list: '首页与列表',
+        default_home: '打开首页默认显示',
+        default_home_all: '全部文章',
+        default_home_all_groups: '所有分组',
+        default_home_favorites: '收藏',
+        default_home_digests: '简报',
+        default_show_unread_only: '默认只显示未读文章',
+        group_label: '分组',
         light: '亮色',
         dark: '暗色',
         group_management: '分组管理',
@@ -323,6 +333,7 @@ export default {
     },
     digest: {
         title: '简报',
+        ai_not_configured: 'AI 服务未配置，请先在设置中配置',
         generating: '正在生成，请稍后点击简报源查看',
         generated: '简报生成成功', // Keep compatible if needed, or remove
         success: '成功生成简报，点击查看',
@@ -356,6 +367,15 @@ export default {
         schedule_frequency: '频率',
         schedule_status: '状态',
         status_enabled: '已启用',
-        status_disabled: '已禁用'
+        status_disabled: '已禁用',
+        select_target: '选择目标',
+        time_range: '时间范围',
+        range_12h: '最近12小时',
+        range_24h: '最近24小时',
+        range_3d: '过去三天',
+        range_7d: '过去7天',
+        range_all: '所有文章',
+        run_now: '立即执行',
+        manager_success: '简报生成成功'
     }
 };

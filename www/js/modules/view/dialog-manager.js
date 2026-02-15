@@ -441,6 +441,16 @@ export const ManagerDialogMixin = {
             setTimeout(() => { globalPushMsg.textContent = ''; }, 2000);
         });
 
+        // Helper: get time range label for task (hours -> 12h/24h/3d/7d/all)
+        const getRangeLabel = (hours) => {
+            if (hours === 0) return i18n.t('digest.range_all');
+            if (hours === 12) return i18n.t('digest.range_12h');
+            if (hours === 24) return i18n.t('digest.range_24h');
+            if (hours === 72) return i18n.t('digest.range_3d');
+            if (hours === 168) return i18n.t('digest.range_7d');
+            return hours ? `${hours}h` : i18n.t('digest.range_24h');
+        };
+
         // Helper: get scope display name
         const getScopeName = (task) => {
             if (task.scope === 'all') return i18n.t('nav.all');
@@ -501,25 +511,15 @@ export const ManagerDialogMixin = {
                 return;
             }
 
-            // Group tasks by scope+scopeId (a twice-daily schedule has 2 tasks)
-            const grouped = {};
-            allSchedules.forEach(t => {
-                const key = `${t.scope}_${t.scopeId || ''}`;
-                if (!grouped[key]) grouped[key] = [];
-                grouped[key].push(t);
-            });
-
+            // 每个任务一张卡片，同一分组可有多条不同时间/时间范围的定时
             listContainer.innerHTML = '';
 
-            Object.keys(grouped).forEach(key => {
-                const tasks = grouped[key];
-                const first = tasks[0];
-                const scopeName = getScopeName(first);
-                const isEnabled = tasks.some(t => t.enabled);
-                const timeStr = tasks.map(t => t.time).sort().join(' & ');
-                const freqLabel = tasks.length > 1 ? i18n.t('settings.twice_daily') : i18n.t('settings.once_daily');
-                const hoursLabel = first.hours ? `${first.hours}h` : '24h';
-                const hasPush = first.pushEnabled;
+            allSchedules.forEach((task) => {
+                const scopeName = getScopeName(task);
+                const timeStr = task.time || '08:00';
+                const hoursLabel = getRangeLabel(task.hours);
+                const isEnabled = task.enabled;
+                const hasPush = task.pushEnabled;
 
                 const card = document.createElement('div');
                 card.style.cssText = `
@@ -541,8 +541,6 @@ export const ManagerDialogMixin = {
                             ${scopeName}
                         </div>
                         <div style="font-size: 0.85em; color: var(--meta-color); display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
-                            <span>${freqLabel}</span>
-                            <span style="opacity: 0.4;">·</span>
                             <span style="font-family: monospace;">${timeStr}</span>
                             <span style="opacity: 0.4;">·</span>
                             <span>${hoursLabel}</span>
@@ -566,19 +564,12 @@ export const ManagerDialogMixin = {
                     </div>
                 `;
 
-                // Update card opacity based on enabled state
                 card.style.opacity = isEnabled ? '1' : '0.6';
 
-                // Toggle enabled/disabled
                 card.querySelector('.toggle-task-btn').addEventListener('change', async (e) => {
                     const newEnabled = e.target.checked;
-
-                    // Update all tasks in this group
-                    tasks.forEach(t => { t.enabled = newEnabled; });
-
-                    // Update card opacity
+                    task.enabled = newEnabled;
                     card.style.opacity = newEnabled ? '1' : '0.6';
-
                     try {
                         const response = await fetch(API_ENDPOINTS.PREFERENCES.BASE, {
                             method: 'POST',
@@ -594,31 +585,23 @@ export const ManagerDialogMixin = {
                         if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     } catch (err) {
                         console.error('Toggle task failed:', err);
-                        // Revert on error
                         e.target.checked = !newEnabled;
-                        tasks.forEach(t => { t.enabled = !newEnabled; });
+                        task.enabled = !newEnabled;
                         card.style.opacity = !newEnabled ? '1' : '0.6';
                         showToast(i18n.t('common.error'), 2000, false);
                     }
                 });
 
-                // Run Now
                 card.querySelector('.run-task-btn').addEventListener('click', async (e) => {
                     const btn = e.currentTarget;
                     if (btn.disabled) return;
-                    
-                    // Find index of the first task in this group within allSchedules
-                    // We trigger the first one as representative (layout/hours usually same)
-                    const taskIndex = allSchedules.indexOf(tasks[0]);
+                    const taskIndex = allSchedules.indexOf(task);
                     if (taskIndex === -1) return;
-
                     btn.disabled = true;
                     btn.style.opacity = '0.5';
                     const originalIcon = btn.innerHTML;
-                    btn.innerHTML = Icons.spinner; // Spinner icon
-                    
+                    btn.innerHTML = Icons.spinner;
                     showToast(i18n.t('digest.generating') || 'Generating digest...', 3000);
-
                     try {
                         const response = await fetch(API_ENDPOINTS.DIGEST.RUN_TASK || '/api/digest/run-task', {
                             method: 'POST',
@@ -628,14 +611,13 @@ export const ManagerDialogMixin = {
                             },
                             body: JSON.stringify({ taskIndex })
                         });
-                        
                         const result = await response.json();
                         if (response.ok && result.success) {
                             let msg = i18n.t('digest.manager_success') || 'Digest generated successfully';
                             if (result.push) {
                                 if (result.push.attempted) {
-                                    msg += result.push.success 
-                                        ? ` & Pushed (${result.push.status || 'OK'} ✅)` 
+                                    msg += result.push.success
+                                        ? ` & Pushed (${result.push.status || 'OK'} ✅)`
                                         : ` (Push Failed ${result.push.status || ''} ❌)`;
                                 } else {
                                     msg += ' (Push Skipped ⚠️)';
@@ -655,22 +637,15 @@ export const ManagerDialogMixin = {
                     }
                 });
 
-                // Edit: open schedule dialog for this scope
                 card.querySelector('.edit-task-btn').addEventListener('click', () => {
                     close();
-                    const context = {};
-                    if (first.scope === 'feed') context.feedId = first.scopeId || first.feedId;
-                    if (first.scope === 'group') context.groupId = first.scopeId || first.groupId;
-                    this.showDigestScheduleDialog(context);
+                    const taskIndex = allSchedules.indexOf(task);
+                    this.showDigestScheduleDialog({ editTaskIndex: taskIndex });
                 });
 
-                // Delete
                 card.querySelector('.delete-task-btn').addEventListener('click', async () => {
                     if (!await Modal.confirm(i18n.t('settings.confirm_delete_schedule'))) return;
-
-                    // Remove these tasks
-                    allSchedules = allSchedules.filter(t => !tasks.includes(t));
-
+                    allSchedules = allSchedules.filter(t => t.id !== task.id);
                     try {
                         const response = await fetch(API_ENDPOINTS.PREFERENCES.BASE, {
                             method: 'POST',

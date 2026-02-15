@@ -32,10 +32,11 @@ export const ScheduleDialogMixin = {
     /**
      * 显示定时简报配置对话框
      *
-     * @param {Object} context - { feedId, groupId } 如果都为空则针对 'all'
+     * @param {Object} context - { feedId, groupId, editTaskIndex } 若带 editTaskIndex 为编辑模式（替换该条），否则为添加模式（追加）
      */
     showDigestScheduleDialog(context = {}) {
-        const { feedId, groupId } = context;
+        const { feedId, groupId, editTaskIndex } = context;
+        const isEditMode = typeof editTaskIndex === 'number' && editTaskIndex >= 0;
         let scope = 'all';
         let scopeId = null;
 
@@ -50,7 +51,7 @@ export const ScheduleDialogMixin = {
         // Build scope options
         const groups = AppState.groups || [];
         const feeds = AppState.feeds || [];
-        const initialScopeValue = scope === 'all' ? 'all' : `${scope}_${scopeId}`;
+        let initialScopeValue = scope === 'all' ? 'all' : `${scope}_${scopeId}`;
 
         let scopeOptionsHtml = `<option value="all">${i18n.t('nav.all')}</option>`;
 
@@ -90,6 +91,17 @@ export const ScheduleDialogMixin = {
                     <div class="settings-item-label" style="margin-bottom: 8px;">${i18n.t('ai.digest_target')}</div>
                     <select id="schedule-scope-select" class="dialog-select">
                         ${scopeOptionsHtml}
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <div class="settings-item-label" style="margin-bottom: 8px;">${i18n.t('digest.time_range')}</div>
+                    <select id="schedule-range-select" class="dialog-select">
+                        <option value="12">${i18n.t('digest.range_12h')}</option>
+                        <option value="24">${i18n.t('digest.range_24h')}</option>
+                        <option value="72">${i18n.t('digest.range_3d')}</option>
+                        <option value="168">${i18n.t('digest.range_7d')}</option>
+                        <option value="0">${i18n.t('digest.range_all')}</option>
                     </select>
                 </div>
 
@@ -180,6 +192,7 @@ export const ScheduleDialogMixin = {
         const enabledInput = dialog.querySelector('#schedule-enabled');
         const configArea = dialog.querySelector('#schedule-config-area');
         const scopeSelect = dialog.querySelector('#schedule-scope-select');
+        const rangeSelect = dialog.querySelector('#schedule-range-select');
         const includeReadInput = dialog.querySelector('#schedule-include-read');
 
         const freqOnceBtn = dialog.querySelector('#freq-once');
@@ -320,11 +333,15 @@ export const ScheduleDialogMixin = {
             const initialTime = firstTask ? firstTask.time : '08:00';
             const isEnabled = existingTasks.length > 0 && existingTasks.some(t => t.enabled);
             const isUnreadOnly = firstTask ? (firstTask.unreadOnly !== false) : true;
+            const taskHours = firstTask?.hours;
+            const rangeValue = taskHours === 0 || taskHours === 12 || taskHours === 24 || taskHours === 72 || taskHours === 168
+                ? String(taskHours) : '24';
 
             enabledInput.checked = isEnabled;
             includeReadInput.checked = !isUnreadOnly;
             configArea.style.opacity = isEnabled ? '1' : '0.5';
             configArea.style.pointerEvents = isEnabled ? 'auto' : 'none';
+            if (rangeSelect) rangeSelect.value = rangeValue;
 
             // Load push enabled state
             pushEnabledInput.checked = !!firstTask?.pushEnabled;
@@ -362,6 +379,32 @@ export const ScheduleDialogMixin = {
             this.showDigestManagerDialog();
         });
 
+        // 编辑模式：从指定任务(索引)加载表单，不按 scope 合并
+        const loadEditTasks = (editTasks) => {
+            if (!editTasks || editTasks.length === 0) {
+                loadScheduleForScope();
+                return;
+            }
+            const first = editTasks[0];
+            scope = first.scope || 'all';
+            scopeId = first.scopeId ?? null;
+            scopeSelect.value = scope === 'all' ? 'all' : `${scope}_${scopeId}`;
+            isTwiceDaily = editTasks.length >= 2;
+            const initialTime = first.time || '08:00';
+            enabledInput.checked = first.enabled !== false;
+            includeReadInput.checked = !(first.unreadOnly !== false);
+            configArea.style.opacity = enabledInput.checked ? '1' : '0.5';
+            configArea.style.pointerEvents = enabledInput.checked ? 'auto' : 'none';
+            const rangeVal = first.hours === 0 || first.hours === 12 || first.hours === 24 || first.hours === 72 || first.hours === 168
+                ? String(first.hours) : '24';
+            if (rangeSelect) rangeSelect.value = rangeVal;
+            pushEnabledInput.checked = !!first.pushEnabled;
+            getPickerTime = setupTimePicker(pickerContainer, initialTime);
+            updateFrequencyUI();
+            loader.style.display = 'none';
+            form.style.display = 'block';
+        };
+
         // --- Load Data ---
 
         fetch(API_ENDPOINTS.PREFERENCES.BASE, {
@@ -370,6 +413,11 @@ export const ScheduleDialogMixin = {
             .then(res => res.json())
             .then(prefs => {
                 allSchedules = prefs.digest_schedules || [];
+                if (isEditMode && editTaskIndex < allSchedules.length) {
+                    const editTasks = [allSchedules[editTaskIndex]];
+                    loadEditTasks(editTasks);
+                    return;
+                }
                 loadScheduleForScope();
             })
             .catch(err => {
@@ -393,8 +441,10 @@ export const ScheduleDialogMixin = {
             // Build new tasks
             const newTasks = [];
 
+            const hoursVal = rangeSelect ? parseInt(rangeSelect.value, 10) : 24;
+            const taskHours = isNaN(hoursVal) ? 24 : hoursVal;
+
             if (isTwiceDaily) {
-                // Task 1
                 newTasks.push({
                     id: generateUUID(),
                     scope: scope,
@@ -403,15 +453,13 @@ export const ScheduleDialogMixin = {
                     groupId: scope === 'group' ? scopeId : null,
                     time: time,
                     enabled: isEnabled,
-                    hours: 12, // 12h range
+                    hours: taskHours,
                     unreadOnly: unreadOnly,
                     pushEnabled: pushEnabledInput.checked,
                 });
-                // Task 2 (+12h)
                 const [h, m] = time.split(':').map(Number);
                 const nextH = (h + 12) % 24;
                 const nextTime = `${String(nextH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-
                 newTasks.push({
                     id: generateUUID(),
                     scope: scope,
@@ -420,12 +468,11 @@ export const ScheduleDialogMixin = {
                     groupId: scope === 'group' ? scopeId : null,
                     time: nextTime,
                     enabled: isEnabled,
-                    hours: 12, // 12h range
+                    hours: taskHours,
                     unreadOnly: unreadOnly,
                     pushEnabled: pushEnabledInput.checked,
                 });
             } else {
-                // Task 1 (Once)
                 newTasks.push({
                     id: generateUUID(),
                     scope: scope,
@@ -434,22 +481,16 @@ export const ScheduleDialogMixin = {
                     groupId: scope === 'group' ? scopeId : null,
                     time: time,
                     enabled: isEnabled,
-                    hours: 24, // 24h range for once daily
+                    hours: taskHours,
                     unreadOnly: unreadOnly,
                     pushEnabled: pushEnabledInput.checked,
                 });
             }
 
-            // Merge with backend data
-            // Remove OLD tasks for this scope
-            const isMatch = (t) => {
-                if (t.scope !== scope) return false;
-                if (t.scopeId == scopeId) return true;
-                return String(t.scopeId || '') === String(scopeId || '');
-            };
-            const otherTasks = allSchedules.filter(t => !isMatch(t));
-
-            const finalTasks = [...otherTasks, ...newTasks];
+            // 编辑模式：只移除被编辑的那一条(按索引)；添加模式：直接追加，同一分组可有多条
+            const finalTasks = isEditMode
+                ? allSchedules.filter((_, i) => i !== editTaskIndex).concat(newTasks)
+                : [...allSchedules, ...newTasks];
 
             try {
                 const response = await fetch(API_ENDPOINTS.PREFERENCES.BASE, {

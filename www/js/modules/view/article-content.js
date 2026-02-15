@@ -511,8 +511,11 @@ export const ArticleContentView = {
         text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
         text = text.replace(/~~(.*?)~~/g, '<del>$1</del>');
 
-        // 6. 链接 [text](url)
-        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        // 6. 链接 [text](url)；以 # 开头的为应用内链接，不设 target="_blank" 以便当前页跳转
+        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
+            const attrs = url.startsWith('#') ? 'href="' + url + '"' : 'href="' + url + '" target="_blank" rel="noopener noreferrer"';
+            return '<a ' + attrs + '>' + label + '</a>';
+        });
 
         // 分隔线
         text = text.replace(/^---+$/gim, '<hr class="md-hr">');

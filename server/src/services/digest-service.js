@@ -1,3 +1,39 @@
+/**
+ * Digest Service - 简报生成
+ *
+ * 数据流（所选分组/订阅源 → 简报内容）：
+ *
+ * 1. 入参：DigestService.generate(miniflux, userId, options)
+ *    - options.scope: 'all' | 'feed' | 'group'
+ *    - options.feedId / options.groupId: 选定订阅源或分组（分组 = Miniflux category）
+ *    - options.hours: 时间范围（12/24/72/168/0）
+ *
+ * 2. 拉取文章：getRecentUnreadArticles(miniflux, { hours, feedId, groupId })
+ *    - 调用 miniflux.getEntries(params)，即 Miniflux API GET /entries
+ *    - 参数：order=published_at, direction=desc, limit=500, status=unread(可选)
+ *    - 限定范围：feed_id=xxx 或 category_id=xxx（分组对应 category_id），以及 after=时间戳（hours 内）
+ *    - 返回：response.entries，每项为 Miniflux entry（含 id, title, content, url, published_at, feed: { title, category: { title } }）
+ *
+ * 3. 准备给模型的数据：prepareArticlesForDigest(articles)
+ *    - 对每篇：取 article.content（正文 HTML）→ 去标签、截断至约 1000 token 作为 summary
+ *    - 产出：{ index, title, feedTitle, categoryName, publishedAt, summary, url } 列表
+ *
+ * 4. 构建 Prompt：buildDigestPrompt(preparedArticles, { targetLang, scope: scopeName, customPrompt })
+ *    - articlesList = 每篇文章格式化为：
+ *      ### N. 标题
+ *      - Source: 订阅源名
+ *      - Category: 分组名（有则写）
+ *      - Date: 发布时间
+ *      - Link: 原文链接
+ *      - Summary: 正文摘要（上一步的 summary，即来自该 entry 的 content）
+ *    - 若用自定义提示词：替换 {{targetLang}}、{{content}}；{{content}} 被替换为「约束说明 + Article List + articlesList」
+ *    - 若用默认提示词：同上，整段 prompt 里唯一的内容来源就是上述 articlesList
+ *
+ * 5. 调用 AI：callAIForDigest(prompt, aiConfig) 把最终 prompt 发给大模型，返回简报正文。
+ *
+ * 结论：传给模型的内容仅来自 Miniflux 在该次请求下返回的 entries（按分组/订阅源+时间筛选），
+ * 每条的 Summary 来自该 entry 的 content 字段，无其它数据源。
+ */
 import fetch from 'node-fetch';
 import { DigestStore } from '../utils/digest-store.js';
 
@@ -29,26 +65,33 @@ function truncateByToken(text, maxTokens) {
     return text;
 }
 
+// 时间范围与小时的映射：0 表示“所有文章”，不设时间下限
+const RANGE_HOURS = { 12: 12, 24: 24, 72: 72, 168: 168, 0: 0 };
+
 // 辅助函数：获取最近文章（可选仅未读）
 export async function getRecentUnreadArticles(miniflux, options) {
     const { hours = 12, limit, feedId, groupId, unreadOnly = true } = options;
 
-    const afterDate = new Date();
-    afterDate.setHours(afterDate.getHours() - hours);
-    const afterTimestamp = Math.floor(afterDate.getTime() / 1000);
+    const effectiveHours = typeof hours === 'number' ? hours : RANGE_HOURS[hours] ?? 12;
 
     const entriesOptions = {
         order: 'published_at',
         direction: 'desc',
-        limit: limit || 500,
-        after: afterTimestamp
+        limit: limit || 500
     };
+
+    if (effectiveHours > 0) {
+        const afterDate = new Date();
+        afterDate.setHours(afterDate.getHours() - effectiveHours);
+        entriesOptions.after = Math.floor(afterDate.getTime() / 1000);
+    }
+    // effectiveHours === 0 表示“所有文章”，不设置 after
 
     if (unreadOnly) {
         entriesOptions.status = 'unread';
     }
 
-    console.log(`[Digest Debug] Fetching articles with options: limit=${entriesOptions.limit}, after=${entriesOptions.after} (${hours} hours ago), unreadOnly=${unreadOnly}`);
+    console.log(`[Digest Debug] Fetching articles with options: limit=${entriesOptions.limit}, after=${entriesOptions.after ?? 'all'}, hours=${effectiveHours}, unreadOnly=${unreadOnly}`);
 
     if (feedId) entriesOptions.feed_id = parseInt(feedId);
     if (groupId) entriesOptions.category_id = parseInt(groupId);
@@ -91,6 +134,7 @@ async function prepareArticlesForDigest(articles) {
                 index: i + batchIndex + 1,
                 title: article.title,
                 feedTitle: article.feed ? article.feed.title : '',
+                feedId: article.feed_id ?? article.feed?.id ?? null,
                 categoryName: article.feed?.category?.title || '',
                 publishedAt: article.published_at,
                 summary: truncateByToken(content, maxTokens),
@@ -138,21 +182,31 @@ function buildDigestPrompt(articles, options = {}) {
         `- Summary: ${a.summary}\n`
     ).join('\n');
 
+    // 注入文章列表时始终带约束说明，减少模型使用订阅源外内容
+    const contentBlock = `## CRITICAL: Use ONLY the information from the article list below. Do not add any facts or details from outside these articles.
+
+## Article List (Total ${articles.length} articles):
+
+${articlesList}`;
 
     let finalPrompt = '';
 
     if (customPrompt && customPrompt.trim()) {
-        // 使用自定义提示词
+        // 使用自定义提示词（替换 {{content}} 时同样带上约束）
         finalPrompt = customPrompt
             .replace(/\{\{targetLang\}\}/g, targetLang)
-            .replace(/\{\{content\}\}/g, `## Article List (Total ${articles.length} articles):\n\n${articlesList}`);
+            .replace(/\{\{content\}\}/g, contentBlock);
     } else {
-        // 默认提示词
-        finalPrompt = `You are a professional news editor. Please generate a concise digest based on the following list of recent ${scope} articles.
+        // 默认提示词（明确禁止使用订阅源外的内容，避免幻觉）
+        finalPrompt = `You are a professional news editor. Generate a concise digest based ONLY on the following list of recent ${scope} articles.
+
+## CRITICAL CONSTRAINT:
+- Use ONLY information from the article list below. Do not add any facts, events, or details from your training data or external knowledge.
+- Every claim in your digest must be traceable to one of the listed articles. If something is not in the list, do not include it.
 
 ## Output Requirements:
 1. Output in ${targetLang}
-2. Start with a 2-3 sentence overview of today's/recent key content
+2. Start with a 2-3 sentence overview of the key content from these articles only
 3. Categorize by topic or importance, listing key information in concise bullet points
 4. If multiple articles relate to the same topic, combine them
 5. Keep the format concise and compact, using Markdown
@@ -254,9 +308,12 @@ export const DigestService = {
         const articles = await getRecentUnreadArticles(minifluxClient, fetchOptions);
 
         if (articles.length === 0) {
+            const timeDesc = hours > 0
+                ? (isEn ? `in the past ${hours} hours` : `在过去 ${hours} 小时内`)
+                : (isEn ? 'in scope' : '范围内');
             const noArticlesMsg = isEn
-                ? `No ${unreadOnly ? 'unread ' : ''}articles in the past ${hours} hours.`
-                : `在过去 ${hours} 小时内没有${unreadOnly ? '未读' : ''}文章。`;
+                ? `No ${unreadOnly ? 'unread ' : ''}articles ${timeDesc}.`
+                : `${timeDesc}没有${unreadOnly ? '未读' : ''}文章。`;
             return {
                 success: true,
                 digest: {
@@ -280,7 +337,34 @@ export const DigestService = {
         });
 
         // 调用 AI
-        const digestContent = await callAIForDigest(prompt, aiConfig);
+        let digestContent = await callAIForDigest(prompt, aiConfig);
+
+        // 文末追加本简报使用的订阅源清单（可点击跳转到该订阅源）
+        const feedMap = new Map();
+        for (const a of preparedArticles) {
+            const id = a.feedId != null ? a.feedId : a.feedTitle;
+            if (id != null && id !== '' && !feedMap.has(id)) {
+                feedMap.set(id, { title: a.feedTitle || (isEn ? 'Feed' : '订阅源'), feedId: a.feedId });
+            }
+        }
+        const feedList = Array.from(feedMap.values());
+        if (feedList.length > 0) {
+            const sectionTitle = isEn ? '## Feed Sources' : '## 订阅源清单';
+            const lines = feedList
+                .filter(f => f.feedId != null)
+                .map(f => `- [${f.title.replace(/\]/g, '\\]')}](#/feed/${f.feedId})`)
+                .join('\n');
+            const fallbackLines = feedList
+                .filter(f => f.feedId == null)
+                .map(f => `- ${f.title}`)
+                .join('\n');
+            const appendix = lines
+                ? (fallbackLines ? `${sectionTitle}\n\n${lines}\n${fallbackLines}` : `${sectionTitle}\n\n${lines}`)
+                : (fallbackLines ? `${sectionTitle}\n\n${fallbackLines}` : '');
+            if (appendix) {
+                digestContent = (digestContent.trimEnd() + '\n\n---\n\n' + appendix).trim();
+            }
+        }
 
         // 生成本地化标题 — 使用用户设定的时区
         const now = new Date();
@@ -314,8 +398,14 @@ export const DigestService = {
 
         const timeStr = `${month}-${day}-${hh}:${mm}`;
 
+        // 时间范围标签（用于标题，便于区分）
+        const rangeLabelsEn = { 12: 'Last 12h', 24: 'Last 24h', 72: 'Past 3d', 168: 'Past 7d', 0: 'All' };
+        const rangeLabelsZh = { 12: '最近12小时', 24: '最近24小时', 72: '过去三天', 168: '过去7天', 0: '全部' };
+        const h = hours === 0 || [12, 24, 72, 168].includes(hours) ? hours : 24;
+        const rangeLabel = options.rangeLabel || (isEn ? (rangeLabelsEn[h] || `${h}h`) : (rangeLabelsZh[h] || `${h}小时`));
+
         const digestWord = isEn ? 'Digest' : '简报';
-        const title = `${scopeName} · ${digestWord} ${timeStr}`;
+        const title = `${scopeName} · ${rangeLabel} · ${digestWord} ${timeStr}`;
 
         // 存储简报
         const saved = await DigestStore.add(userId, {

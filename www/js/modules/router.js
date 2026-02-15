@@ -6,6 +6,7 @@
 import { ViewManager } from './view-manager.js';
 import { AuthManager } from './auth-manager.js';
 import { SearchView } from './view/search-view.js';
+import { AppState } from '../state.js';
 
 export const Router = {
     init() {
@@ -21,11 +22,16 @@ export const Router = {
                 return;
             }
 
-            // 如果没有 hash，且是移动端，默认跳转到文章列表
-            // Desktop 默认显示 all
-            // 如果没有 hash，默认跳转到 #/all
-            if (!window.location.hash) {
-                window.location.hash = '#/all';
+            if (!window.location.hash || window.location.hash === '#/') {
+                const defaultHome = AppState.preferences?.default_home || 'all';
+                let hash = '#/all';
+                if (defaultHome === 'favorites') hash = '#/favorites';
+                else if (defaultHome === 'digests') hash = '#/digests';
+                else if (defaultHome && defaultHome.startsWith('group_')) hash = '#/group/' + defaultHome.replace('group_', '');
+                else if (defaultHome && defaultHome.startsWith('feed_')) hash = '#/feed/' + defaultHome.replace('feed_', '');
+                // all / all_groups 或未设置 -> #/all
+                window.location.hash = hash;
+                this.handleHashChange();
                 return;
             }
 
