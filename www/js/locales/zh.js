@@ -25,7 +25,8 @@ export default {
         unnamed: '未命名',
         global_settings: '全局设置',
         view: '查看',
-        go_to_settings: '前往设置'
+        go_to_settings: '前往设置',
+        retry: '重试'
     },
     nav: {
         all: '全部文章',

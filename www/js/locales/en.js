@@ -25,7 +25,8 @@ export default {
         unnamed: 'Unnamed',
         global_settings: 'Global Settings',
         view: 'View',
-        go_to_settings: 'Go to Settings'
+        go_to_settings: 'Go to Settings',
+        retry: 'Retry'
     },
     nav: {
         all: 'All Articles',
