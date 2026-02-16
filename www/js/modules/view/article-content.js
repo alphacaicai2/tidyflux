@@ -170,6 +170,7 @@ export const ArticleContentView = {
                 }
 
                 vm.updateSidebarActiveState(context);
+                vm.updateFilterButtons();
                 await vm.loadArticles(context?.feedId || null, context?.groupId || null);
             }
         }

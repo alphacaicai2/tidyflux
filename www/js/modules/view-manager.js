@@ -263,6 +263,7 @@ export const ViewManager = {
         AppState.showUnreadOnly = saved !== null ? saved : defaultUnread;
 
         this.updateSidebarActiveState({ feedId });
+        this.updateFilterButtons();
 
         if (feedId) {
             const feed = AppState.feeds.find(f => f.id == feedId);
@@ -303,6 +304,7 @@ export const ViewManager = {
         AppState.showUnreadOnly = saved !== null ? saved : defaultUnread;
 
         this.updateSidebarActiveState({ groupId });
+        this.updateFilterButtons();
 
         const group = AppState.groups?.find(g => g.id == groupId);
         DOMElements.currentFeedTitle.textContent = group?.name || i18n.t('nav.group_articles');
@@ -336,6 +338,7 @@ export const ViewManager = {
         AppState.showUnreadOnly = false;
 
         this.updateSidebarActiveState({ favorites: true });
+        this.updateFilterButtons();
         DOMElements.currentFeedTitle.textContent = i18n.t('nav.starred');
 
         // 先显示面板，让骨架屏可见
@@ -365,6 +368,7 @@ export const ViewManager = {
         AppState.showUnreadOnly = false;
 
         this.updateSidebarActiveState({ digests: true });
+        this.updateFilterButtons();
         DOMElements.currentFeedTitle.textContent = i18n.t('nav.briefings');
 
         if (window.innerWidth <= BREAKPOINT_TABLET) this.showPanel('articles');
@@ -593,6 +597,74 @@ export const ViewManager = {
         }
     },
 
+    /**
+     * 设置过滤模式（未读/已读/全部）
+     * @param {string} mode - 'unread', 'read', 'all'
+     */
+    async setFilterMode(mode) {
+        if (AppState.viewingDigests || AppState.viewingFavorites) {
+            // 简报和收藏夹不支持过滤
+            return;
+        }
+
+        let filterValue;
+        if (mode === 'unread') {
+            filterValue = true; // showUnreadOnly = true
+        } else {
+            filterValue = false; // showUnreadOnly = false (显示全部)
+        }
+
+        AppState.showUnreadOnly = filterValue;
+
+        // 保存过滤设置
+        let filterKey = 'all';
+        if (AppState.currentFeedId) {
+            filterKey = `feed_${AppState.currentFeedId}`;
+        } else if (AppState.currentGroupId) {
+            filterKey = `group_${AppState.currentGroupId}`;
+        }
+
+        await this.saveFilterSetting(filterKey, filterValue);
+
+        // 更新按钮状态
+        this.updateFilterButtons();
+
+        // 重新加载文章列表
+        await this.loadArticles(AppState.currentFeedId, AppState.currentGroupId);
+    },
+
+    /**
+     * 更新过滤按钮的激活状态
+     */
+    updateFilterButtons() {
+        const unreadBtn = document.getElementById('filter-unread-btn');
+        const readBtn = document.getElementById('filter-read-btn');
+        const allBtn = document.getElementById('filter-all-btn');
+        const filterContainer = document.getElementById('articles-filter-buttons');
+
+        if (!filterContainer) return;
+
+        // 在简报或收藏夹模式下隐藏过滤按钮
+        if (AppState.viewingDigests || AppState.viewingFavorites) {
+            filterContainer.style.display = 'none';
+            return;
+        }
+
+        filterContainer.style.display = 'flex';
+
+        // 移除所有激活状态
+        unreadBtn?.classList.remove('active');
+        readBtn?.classList.remove('active');
+        allBtn?.classList.remove('active');
+
+        // 根据当前状态设置激活按钮
+        if (AppState.showUnreadOnly) {
+            unreadBtn?.classList.add('active');
+        } else {
+            allBtn?.classList.add('active');
+        }
+    },
+
     // ==================== Utility 相关 ====================
 
     formatDate,
@@ -698,6 +770,17 @@ export const ViewManager = {
 
         document.getElementById('settings-btn')?.addEventListener('click', () => {
             this.showSettingsDialog();
+        });
+
+        // 绑定文章列表过滤按钮
+        document.getElementById('filter-unread-btn')?.addEventListener('click', async () => {
+            await this.setFilterMode('unread');
+        });
+        document.getElementById('filter-read-btn')?.addEventListener('click', async () => {
+            await this.setFilterMode('read');
+        });
+        document.getElementById('filter-all-btn')?.addEventListener('click', async () => {
+            await this.setFilterMode('all');
         });
 
         DOMElements.scrollToTopBtn?.addEventListener('click', async (e) => {

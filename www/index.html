@@ -92,8 +92,12 @@
         <div id="articles-panel" class="articles-panel">
             <div class="panel-header">
                 <h2 id="current-feed-title" data-i18n="nav.all">全部文章</h2>
-                <button id="articles-search-btn" class="icon-btn" title="搜索" data-i18n="common.search"
-                    style="margin-left: auto;">
+                <div id="articles-filter-buttons" class="articles-filter-buttons" style="display: flex; gap: 4px; margin-left: auto; margin-right: 8px;">
+                    <button id="filter-unread-btn" class="filter-btn" data-filter="unread" title="未读" data-i18n="context.show_unread">未读</button>
+                    <button id="filter-read-btn" class="filter-btn" data-filter="read" title="已读" style="display: none;">已读</button>
+                    <button id="filter-all-btn" class="filter-btn active" data-filter="all" title="全部" data-i18n="context.show_all">全部</button>
+                </div>
+                <button id="articles-search-btn" class="icon-btn" title="搜索" data-i18n="common.search">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20"
                         height="20">
                         <path
