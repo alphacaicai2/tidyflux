@@ -33,7 +33,9 @@ services:
     restart: unless-stopped
 
   tidyflux:
-    image: pehzerov/tidyflux:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: tidyflux
     ports:
       - "8812:8812"
