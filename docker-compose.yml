@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  miniflux:
+    image: miniflux/miniflux:latest
+    container_name: miniflux
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      - RUN_MIGRATIONS=1
+      - CREATE_ADMIN=1
+      - ADMIN_USERNAME=${MINIFLUX_USERNAME:-admin}
+      - ADMIN_PASSWORD=${MINIFLUX_PASSWORD}
+      - DATABASE_URL=postgres://miniflux:${POSTGRES_PASSWORD}@db/miniflux?sslmode=disable
+      - POLLING_FREQUENCY=${POLLING_FREQUENCY:-60}
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: miniflux-db
+    environment:
+      - POSTGRES_USER=miniflux
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=miniflux
+    volumes:
+      - miniflux_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "miniflux"]
+      interval: 10s
+      start_period: 30s
+    restart: unless-stopped
+
+  tidyflux:
+    build:
+      context: .
+      dockerfile: Dockerfile.tidyflux
+    container_name: tidyflux
+    ports:
+      - "8812:8812"
+    depends_on:
+      miniflux:
+        condition: service_started
+    environment:
+      - PORT=8812
+      - TZ=${TZ:-Asia/Shanghai}
+      - MINIFLUX_URL=http://miniflux:8080
+      - MINIFLUX_USERNAME=${MINIFLUX_USERNAME:-admin}
+      - MINIFLUX_PASSWORD=${MINIFLUX_PASSWORD}
+    volumes:
+      - tidyflux_data:/app/server/data
+    restart: unless-stopped
+
+volumes:
+  miniflux_db:
+  tidyflux_data:
