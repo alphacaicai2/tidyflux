@@ -234,9 +234,10 @@ export const ViewManager = {
     async _renderFeed(feedId) {
         await this.waitForFeedsLoaded();
 
-        // 检查是否需要跳过重复加载（滑动返回时不刷新，点击时刷新）
-        // 规范化 feedId：空字符串转换为 null
+        // 规范化 feedId：空字符串转换为 null（在函数开始处统一处理）
         const normalizedFeedId = feedId && feedId !== '' ? feedId : null;
+
+        // 检查是否需要跳过重复加载（滑动返回时不刷新，点击时刷新）
         const isSame = !AppState.isSearchMode &&
             (AppState.currentFeedId == normalizedFeedId || (normalizedFeedId === null && !AppState.currentFeedId)) &&
             !AppState.currentGroupId && !AppState.viewingFavorites && !AppState.viewingDigests && AppState.articles.length > 0;
