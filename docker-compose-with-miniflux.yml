@@ -14,7 +14,7 @@ services:
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=password # CHANGE THIS: Set a secure password for your Miniflux admin account
       - DATABASE_URL=postgres://miniflux:secret@db/miniflux?sslmode=disable
-      - POLLING_FREQUENCY=60
+      - POLLING_FREQUENCY=10
     restart: unless-stopped
 
   db:
