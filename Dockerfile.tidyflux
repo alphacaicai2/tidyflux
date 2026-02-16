@@ -1,0 +1,23 @@
+# 从 alphacaicai2/tidyflux 源码构建（含 AI 翻译等）。context 为 miniflux-tidyflux，源码在 tidyflux-src/
+
+# Stage 1: Build
+FROM node:18-alpine AS builder
+RUN apk add --no-cache bash && npm install -g esbuild
+
+WORKDIR /app
+COPY tidyflux-src/ .
+
+# 去掉 Windows 克隆带来的 CRLF，再执行构建
+RUN sed -i 's/\r$//' build.sh && chmod +x build.sh && bash build.sh
+
+# Stage 2: Production
+FROM node:18-alpine
+WORKDIR /app
+COPY --from=builder /app/docker/dist /app
+
+WORKDIR /app/server
+RUN npm ci --production
+
+ENV PORT=8812
+EXPOSE 8812
+CMD ["node", "src/index.js"]
