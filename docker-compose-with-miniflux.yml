@@ -35,7 +35,7 @@ services:
   tidyflux:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.tidyflux
     container_name: tidyflux
     ports:
       - "8812:8812"
