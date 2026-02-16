@@ -254,8 +254,7 @@ export const ViewManager = {
         AppState.isSearchMode = false;
         AppState.searchQuery = '';
 
-        // 规范化 feedId：空字符串转换为 null
-        const normalizedFeedId = feedId && feedId !== '' ? feedId : null;
+        // 使用上面已经规范化的 normalizedFeedId
         AppState.currentFeedId = normalizedFeedId;
         AppState.currentGroupId = null;
         AppState.viewingFavorites = false;
