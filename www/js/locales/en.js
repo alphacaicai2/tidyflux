@@ -276,6 +276,7 @@ export default {
         provider_openai: 'OpenAI',
         provider_openrouter: 'OpenRouter',
         provider_gemini: 'Google Gemini',
+        provider_siliconflow: 'SiliconFlow',
         provider_minimax: 'MiniMax',
         provider_zhipu: 'ZhiPu AI',
         provider_custom: 'Custom',

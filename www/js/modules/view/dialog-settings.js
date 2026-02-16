@@ -37,6 +37,14 @@ const AI_PROVIDERS = {
         hasRegion: false,
         manualModel: false
     },
+    siliconflow: {
+        name: 'SiliconFlow',
+        apiUrl: 'https://api.siliconflow.cn/v1',
+        // SiliconFlow exposes many models; keep manual input flexible by default
+        models: [],
+        hasRegion: false,
+        manualModel: true
+    },
     minimax: {
         name: 'MiniMax',
         apiUrl: {
@@ -170,6 +178,7 @@ export const SettingsDialogMixin = {
                             <option value="openai">${i18n.t('ai.provider_openai')}</option>
                             <option value="openrouter">${i18n.t('ai.provider_openrouter')}</option>
                             <option value="gemini">${i18n.t('ai.provider_gemini')}</option>
+                            <option value="siliconflow">${i18n.t('ai.provider_siliconflow')}</option>
                             <option value="minimax">${i18n.t('ai.provider_minimax')}</option>
                             <option value="zhipu">${i18n.t('ai.provider_zhipu')}</option>
                             <option value="custom">${i18n.t('ai.provider_custom')}</option>
@@ -522,6 +531,7 @@ export const SettingsDialogMixin = {
             if (!url) return 'openai';
             if (url.includes('openrouter.ai')) return 'openrouter';
             if (url.includes('generativelanguage.googleapis.com')) return 'gemini';
+            if (url.includes('siliconflow.cn')) return 'siliconflow';
             if (url.includes('minimax.chat')) return 'minimax';
             if (url.includes('minimaxi.com')) return 'minimax';
             if (url.includes('bigmodel.cn') || url.includes('bigmodel.ai')) return 'zhipu';
