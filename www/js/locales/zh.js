@@ -181,6 +181,7 @@ export default {
         mark_all_read: '全部已读',
         show_all: '显示全部',
         show_unread: '只显示未读',
+        show_read: '只显示已读',
         scroll_mark_read: '滚动标记已读',
         enter_new_name: '请输入新名称',
         confirm_delete_group: '确定要删除这个分组吗？分组内的订阅源也会一并删除。',

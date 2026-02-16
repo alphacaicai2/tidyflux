@@ -181,6 +181,7 @@ export default {
         mark_all_read: 'Mark All Read',
         show_all: 'Show All',
         show_unread: 'Show Unread Only',
+        show_read: 'Show Read',
         scroll_mark_read: 'Scroll to Mark Read',
         enter_new_name: 'Enter new name',
         confirm_delete_group: 'Are you sure you want to delete this group? Feeds inside will also be deleted.',
