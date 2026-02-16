@@ -22,3 +22,27 @@ services:
 
 volumes:
   tidyflux_data:
+version: '3.8'
+
+services:
+  tidyflux:
+    image: pehzerov/tidyflux:latest
+    container_name: tidyflux
+    restart: unless-stopped
+    ports:
+      - "8812:8812"
+    volumes:
+      - tidyflux_data:/app/server/data
+    environment:
+      - PORT=8812
+      # Container timezone, ensuring scheduled digest runs at the correct time
+      - TZ=Asia/Shanghai
+      # Optional: Configure Miniflux auto-login (uncomment and fill in)
+      - MINIFLUX_URL=https://your-miniflux-server.com
+      - MINIFLUX_API_KEY=your_miniflux_api_key
+      # Alternatively, use username/password:
+      # - MINIFLUX_USERNAME=admin
+      # - MINIFLUX_PASSWORD=miniflux_password
+
+volumes:
+  tidyflux_data:

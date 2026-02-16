@@ -137,10 +137,14 @@ export const ArticlesView = {
      * 加载普通文章列表
      */
     async _loadNormalArticles(requestId, feedId, groupId) {
+        // 规范化 feedId 和 groupId：空字符串转换为 null
+        const normalizedFeedId = feedId && feedId !== '' ? feedId : null;
+        const normalizedGroupId = groupId && groupId !== '' ? groupId : null;
+        
         const articlesResult = await FeedManager.getArticles({
             page: 1,
-            feedId,
-            groupId,
+            feedId: normalizedFeedId,
+            groupId: normalizedGroupId,
             unreadOnly: AppState.showUnreadOnly,
             favorites: AppState.viewingFavorites
         });

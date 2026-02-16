@@ -143,11 +143,12 @@ export const FeedManager = {
 
         if (favorites) {
             params.append('favorites', 'true');
-        } else if (feedId) {
+        } else if (feedId && feedId !== '') {
             params.append('feed_id', feedId);
-        } else if (groupId) {
+        } else if (groupId && groupId !== '') {
             params.append('group_id', groupId);
         }
+        // 如果 feedId 和 groupId 都是 null/空，则不添加这些参数，返回所有文章
 
         const response = await AuthManager.fetchWithAuth(`/api/articles?${params.toString()}`);
 

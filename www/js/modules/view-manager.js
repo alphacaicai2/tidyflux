@@ -235,8 +235,10 @@ export const ViewManager = {
         await this.waitForFeedsLoaded();
 
         // 检查是否需要跳过重复加载（滑动返回时不刷新，点击时刷新）
+        // 规范化 feedId：空字符串转换为 null
+        const normalizedFeedId = feedId && feedId !== '' ? feedId : null;
         const isSame = !AppState.isSearchMode &&
-            (AppState.currentFeedId == (feedId || '') || (feedId === null && !AppState.currentFeedId)) &&
+            (AppState.currentFeedId == normalizedFeedId || (normalizedFeedId === null && !AppState.currentFeedId)) &&
             !AppState.currentGroupId && !AppState.viewingFavorites && !AppState.viewingDigests && AppState.articles.length > 0;
 
         if (isSame && !this.forceRefreshList) {
@@ -252,21 +254,23 @@ export const ViewManager = {
         AppState.isSearchMode = false;
         AppState.searchQuery = '';
 
-        AppState.currentFeedId = feedId;
+        // 规范化 feedId：空字符串转换为 null
+        const normalizedFeedId = feedId && feedId !== '' ? feedId : null;
+        AppState.currentFeedId = normalizedFeedId;
         AppState.currentGroupId = null;
         AppState.viewingFavorites = false;
         AppState.viewingDigests = false;
 
-        const filterKey = feedId ? `feed_${feedId}` : 'all';
+        const filterKey = AppState.currentFeedId ? `feed_${AppState.currentFeedId}` : 'all';
         const saved = this.loadFilterSetting(filterKey);
         const defaultUnread = AppState.preferences?.default_show_unread_only !== false;
         AppState.showUnreadOnly = saved !== null ? saved : defaultUnread;
 
-        this.updateSidebarActiveState({ feedId });
+        this.updateSidebarActiveState({ feedId: AppState.currentFeedId });
         this.updateFilterButtons();
 
-        if (feedId) {
-            const feed = AppState.feeds.find(f => f.id == feedId);
+        if (AppState.currentFeedId) {
+            const feed = AppState.feeds.find(f => f.id == AppState.currentFeedId);
             DOMElements.currentFeedTitle.textContent = feed?.title || i18n.t('nav.article_list');
         } else {
             DOMElements.currentFeedTitle.textContent = i18n.t('nav.all');
@@ -274,7 +278,7 @@ export const ViewManager = {
 
         // 先显示面板，让骨架屏可见
         if (window.innerWidth <= BREAKPOINT_TABLET) this.showPanel('articles');
-        await this.loadArticles(feedId, null);
+        await this.loadArticles(AppState.currentFeedId, null);
     },
 
     async _renderGroup(groupId) {

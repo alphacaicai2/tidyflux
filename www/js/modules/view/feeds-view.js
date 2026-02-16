@@ -388,7 +388,9 @@ export const FeedsView = {
         // 订阅源点击和右键菜单
         DOMElements.feedsList.querySelectorAll('.feed-item-btn').forEach(btn => {
             if (btn.id !== 'favorites-btn' && btn.id !== 'digests-btn') {
-                const feedId = btn.dataset.feedId || null;
+                // 确保空字符串转换为 null，避免传递空字符串给后端
+                const feedIdRaw = btn.dataset.feedId;
+                const feedId = feedIdRaw && feedIdRaw.trim() !== '' ? feedIdRaw : null;
 
                 // 点击事件
                 btn.addEventListener('click', () => {
@@ -515,7 +517,9 @@ export const FeedsView = {
         vm.isProgrammaticNav = true;
         vm.forceRefreshList = true;
 
-        const hash = feedId ? `#/feed/${feedId}` : '#/all';
+        // 确保空字符串转换为 null
+        const normalizedFeedId = feedId && feedId !== '' ? feedId : null;
+        const hash = normalizedFeedId ? `#/feed/${normalizedFeedId}` : '#/all';
         // 强制触发路由，即使 hash 相同也重新加载
         if (window.location.hash === hash) {
             window.dispatchEvent(new HashChangeEvent('hashchange'));
