@@ -128,12 +128,18 @@ export const FeedManager = {
         return data;
     },
 
-    async getArticles({ page = 1, feedId = null, groupId = null, unreadOnly = true, favorites = false, cursor = null } = {}) {
+    async getArticles({ page = 1, feedId = null, groupId = null, unreadOnly = true, readOnly = false, favorites = false, cursor = null } = {}) {
         const params = new URLSearchParams({
             page: String(page),
             limit: '50',
             unread_only: String(unreadOnly)
         });
+
+        // 已读模式：覆盖 unread_only，设置 read_only
+        if (readOnly) {
+            params.set('unread_only', 'false');
+            params.set('read_only', 'true');
+        }
 
         // 使用游标分页
         if (cursor?.publishedAt && cursor?.id) {

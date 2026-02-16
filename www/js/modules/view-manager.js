@@ -263,8 +263,16 @@ export const ViewManager = {
 
         const filterKey = AppState.currentFeedId ? `feed_${AppState.currentFeedId}` : 'all';
         const saved = this.loadFilterSetting(filterKey);
-        const defaultUnread = AppState.preferences?.default_show_unread_only !== false;
-        AppState.showUnreadOnly = saved !== null ? saved : defaultUnread;
+        
+        // 兼容三态过滤（字符串）和旧版（布尔值）
+        if (typeof saved === 'string') {
+            AppState.showUnreadOnly = (saved === 'unread');
+            AppState.showReadOnly = (saved === 'read');
+        } else {
+            const defaultUnread = AppState.preferences?.default_show_unread_only !== false;
+            AppState.showUnreadOnly = saved !== null ? saved : defaultUnread;
+            AppState.showReadOnly = false;
+        }
 
         this.updateSidebarActiveState({ feedId: AppState.currentFeedId });
         this.updateFilterButtons();
@@ -304,8 +312,16 @@ export const ViewManager = {
         AppState.viewingDigests = false;
 
         const saved = this.loadFilterSetting(`group_${groupId}`);
-        const defaultUnread = AppState.preferences?.default_show_unread_only !== false;
-        AppState.showUnreadOnly = saved !== null ? saved : defaultUnread;
+        
+        // 兼容三态过滤
+        if (typeof saved === 'string') {
+            AppState.showUnreadOnly = (saved === 'unread');
+            AppState.showReadOnly = (saved === 'read');
+        } else {
+            const defaultUnread = AppState.preferences?.default_show_unread_only !== false;
+            AppState.showUnreadOnly = saved !== null ? saved : defaultUnread;
+            AppState.showReadOnly = false;
+        }
 
         this.updateSidebarActiveState({ groupId });
         this.updateFilterButtons();
@@ -611,16 +627,11 @@ export const ViewManager = {
             return;
         }
 
-        let filterValue;
-        if (mode === 'unread') {
-            filterValue = true; // showUnreadOnly = true
-        } else {
-            filterValue = false; // showUnreadOnly = false (显示全部)
-        }
+        // 三态过滤：unread / read / all
+        AppState.showUnreadOnly = (mode === 'unread');
+        AppState.showReadOnly = (mode === 'read');
 
-        AppState.showUnreadOnly = filterValue;
-
-        // 保存过滤设置
+        // 保存过滤模式（字符串形式）
         let filterKey = 'all';
         if (AppState.currentFeedId) {
             filterKey = `feed_${AppState.currentFeedId}`;
@@ -628,7 +639,7 @@ export const ViewManager = {
             filterKey = `group_${AppState.currentGroupId}`;
         }
 
-        await this.saveFilterSetting(filterKey, filterValue);
+        await this.saveFilterSetting(filterKey, mode);
 
         // 更新按钮状态
         this.updateFilterButtons();
@@ -638,7 +649,7 @@ export const ViewManager = {
     },
 
     /**
-     * 更新过滤按钮的激活状态
+     * 更新过滤按钮的激活状态（三态：未读/已读/全部）
      */
     updateFilterButtons() {
         const unreadBtn = document.getElementById('filter-unread-btn');
@@ -661,8 +672,10 @@ export const ViewManager = {
         readBtn?.classList.remove('active');
         allBtn?.classList.remove('active');
 
-        // 根据当前状态设置激活按钮
-        if (AppState.showUnreadOnly) {
+        // 根据当前状态设置激活按钮（三态）
+        if (AppState.showReadOnly) {
+            readBtn?.classList.add('active');
+        } else if (AppState.showUnreadOnly) {
             unreadBtn?.classList.add('active');
         } else {
             allBtn?.classList.add('active');

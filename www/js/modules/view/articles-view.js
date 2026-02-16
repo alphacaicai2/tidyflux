@@ -146,6 +146,7 @@ export const ArticlesView = {
             feedId: normalizedFeedId,
             groupId: normalizedGroupId,
             unreadOnly: AppState.showUnreadOnly,
+            readOnly: AppState.showReadOnly,
             favorites: AppState.viewingFavorites
         });
 
@@ -488,6 +489,15 @@ export const ArticlesView = {
             return escaped;
         }
 
+        // 检查翻译范围
+        if (aiConfig.titleTranslationScope === 'groups') {
+            const authorizedGroupIds = new Set(aiConfig.titleTranslationGroupIds || []);
+            const feed = AppState.feeds.find(f => f.id == article.feed_id);
+            if (!feed || !feed.category || !authorizedGroupIds.has(feed.category.id)) {
+                return escaped;
+            }
+        }
+
         const targetLangId = aiConfig.targetLang || 'zh-CN';
         const cached = AIService.getTitleCache(article.title, targetLangId);
         const mode = aiConfig.titleTranslationMode || 'bilingual';
@@ -522,9 +532,20 @@ export const ArticlesView = {
         const targetLangId = aiConfig.targetLang || 'zh-CN';
         const mode = aiConfig.titleTranslationMode || 'bilingual';
 
-        // 过滤出需要翻译的文章（未缓存且非 digest）
+        // 过滤出需要翻译的文章（未缓存且非 digest，且符合翻译范围）
         const needTranslate = articles.filter(a => {
             if (a.type === 'digest') return false;
+            
+            // 检查翻译范围
+            if (aiConfig.titleTranslationScope === 'groups') {
+                const authorizedGroupIds = new Set(aiConfig.titleTranslationGroupIds || []);
+                const feed = AppState.feeds.find(f => f.id == a.feed_id);
+                // 注意：Miniflux API 中 feed.category.id 是数字，这里做宽容比较
+                if (!feed || !feed.category || !authorizedGroupIds.has(feed.category.id)) {
+                    return false;
+                }
+            }
+
             return !AIService.getTitleCache(a.title, targetLangId);
         });
 
@@ -648,11 +669,12 @@ export const ArticlesView = {
                     }
                 }
 
-                result = await FeedManager.getArticles({
+                    result = await FeedManager.getArticles({
                     page: nextPage,
                     feedId: AppState.currentFeedId,
                     groupId: AppState.currentGroupId,
                     unreadOnly: AppState.showUnreadOnly,
+                    readOnly: AppState.showReadOnly,
                     favorites: AppState.viewingFavorites,
                     cursor
                 });
@@ -730,6 +752,7 @@ export const ArticlesView = {
                     feedId: AppState.currentFeedId,
                     groupId: AppState.currentGroupId,
                     unreadOnly: AppState.showUnreadOnly,
+                    readOnly: AppState.showReadOnly,
                     favorites: AppState.viewingFavorites,
                     cursor
                 });

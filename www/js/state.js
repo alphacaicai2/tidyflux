@@ -36,6 +36,7 @@ const state = {
     // 过滤与排序设置
     filter: {
         showUnreadOnly: true,
+        showReadOnly: false,
     },
     // UI 临时状态
     ui: {
@@ -69,6 +70,7 @@ const legacyMap = {
     pagination: ['content', 'pagination'],
     currentArticleId: ['content', 'currentArticleId'],
     showUnreadOnly: ['filter', 'showUnreadOnly'],
+    showReadOnly: ['filter', 'showReadOnly'],
     isSearchMode: ['search', 'isSearchMode'],
     searchQuery: ['search', 'searchQuery'],
     preferences: ['user', 'preferences'],

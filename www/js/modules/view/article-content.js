@@ -147,13 +147,27 @@ export const ArticleContentView = {
                         defaultUnread = false;
                     }
                     const savedFilter = vm.loadFilterSetting(filterKey);
-                    AppState.showUnreadOnly = savedFilter !== null ? savedFilter : defaultUnread;
+                    // 兼容三态过滤
+                    if (typeof savedFilter === 'string') {
+                        AppState.showUnreadOnly = (savedFilter === 'unread');
+                        AppState.showReadOnly = (savedFilter === 'read');
+                    } else {
+                        AppState.showUnreadOnly = savedFilter !== null ? savedFilter : defaultUnread;
+                        AppState.showReadOnly = false;
+                    }
                 } else {
                     AppState.currentFeedId = null;
                     AppState.currentGroupId = null;
                     AppState.viewingFavorites = false;
                     const savedFilter = vm.loadFilterSetting('all');
-                    AppState.showUnreadOnly = savedFilter !== null ? savedFilter : true;
+                    // 兼容三态过滤
+                    if (typeof savedFilter === 'string') {
+                        AppState.showUnreadOnly = (savedFilter === 'unread');
+                        AppState.showReadOnly = (savedFilter === 'read');
+                    } else {
+                        AppState.showUnreadOnly = savedFilter !== null ? savedFilter : true;
+                        AppState.showReadOnly = false;
+                    }
                 }
 
                 // 更新标题和侧边栏状态

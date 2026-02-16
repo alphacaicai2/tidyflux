@@ -255,6 +255,23 @@ export const SettingsDialogMixin = {
                                     </label>
                                 </div>
                             </div>
+                            <!-- 翻译范围选择 -->
+                            <div id="ai-title-translation-scope-container" style="display: none; margin-top: 8px; margin-left: 24px;">
+                                <label class="miniflux-input-label" style="font-size: 0.85em;">翻译范围</label>
+                                <div style="display: flex; gap: 12px; margin-bottom: 8px;">
+                                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 0.85em; color: var(--text-primary);">
+                                        <input type="radio" name="title-translation-scope" value="all" style="accent-color: var(--accent-color); cursor: pointer;">
+                                        全部文章
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 0.85em; color: var(--text-primary);">
+                                        <input type="radio" name="title-translation-scope" value="groups" style="accent-color: var(--accent-color); cursor: pointer;">
+                                        指定分组
+                                    </label>
+                                </div>
+                                <div id="ai-title-translation-groups" style="display: none; max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
+                                    <!-- 动态生成分组列表 -->
+                                </div>
+                            </div>
                         </div>
 
                         <div class="collapsible-section" style="margin-bottom: 16px;">
@@ -595,14 +612,9 @@ export const SettingsDialogMixin = {
                 ).join('');
             }
 
-            // Disable URL input for non-custom providers
-            if (provider === 'custom') {
-                aiUrlInput.removeAttribute('readonly');
-                aiUrlInput.style.opacity = '1';
-            } else {
-                aiUrlInput.setAttribute('readonly', 'true');
-                aiUrlInput.style.opacity = '0.7';
-            }
+            // URL 输入始终可编辑
+            aiUrlInput.removeAttribute('readonly');
+            aiUrlInput.style.opacity = '1';
         };
 
         // Initialize from saved config
@@ -666,7 +678,51 @@ export const SettingsDialogMixin = {
                 if (titleTranslationModeContainer) {
                     titleTranslationModeContainer.style.display = aiTitleTranslationCheckbox.checked ? 'block' : 'none';
                 }
+                const scopeContainer = dialog.querySelector('#ai-title-translation-scope-container');
+                if (scopeContainer) {
+                    scopeContainer.style.display = aiTitleTranslationCheckbox.checked ? 'block' : 'none';
+                }
             });
+
+            // 标题翻译范围逻辑
+            const scopeContainer = dialog.querySelector('#ai-title-translation-scope-container');
+            const groupsContainer = dialog.querySelector('#ai-title-translation-groups');
+            const scopeRadios = dialog.querySelectorAll('input[name="title-translation-scope"]');
+
+            if (scopeContainer) {
+                scopeContainer.style.display = aiConfig.titleTranslation ? 'block' : 'none';
+            }
+
+            // 初始化范围值
+            const currentScope = aiConfig.titleTranslationScope || 'all';
+            const scopeRadio = dialog.querySelector(`input[name="title-translation-scope"][value="${currentScope}"]`);
+            if (scopeRadio) scopeRadio.checked = true;
+
+            // 渲染分组并绑定事件
+            if (groupsContainer) {
+                const allGroups = AppState.groups || [];
+                const selectedGroupIds = new Set(aiConfig.titleTranslationGroupIds || []);
+                
+                groupsContainer.innerHTML = allGroups.map(g => `
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer;">
+                        <input type="checkbox" name="title-translation-group" value="${g.id}" 
+                            style="accent-color: var(--accent-color); width: 14px; height: 14px;"
+                            ${selectedGroupIds.has(g.id) ? 'checked' : ''}>
+                        <span style="font-size: 0.9em; color: var(--text-primary);">${g.title || g.name}</span>
+                    </label>
+                `).join('');
+
+                // 根据范围切换分组列表显示
+                const toggleGroupsList = () => {
+                    const groupsRadio = dialog.querySelector('input[name="title-translation-scope"][value="groups"]');
+                    if (groupsRadio) {
+                        groupsContainer.style.display = groupsRadio.checked ? 'block' : 'none';
+                    }
+                };
+                
+                scopeRadios.forEach(radio => radio.addEventListener('change', toggleGroupsList));
+                toggleGroupsList(); // 初始化状态
+            }
         }
 
         // Provider change handler
@@ -773,7 +829,9 @@ export const SettingsDialogMixin = {
                     digestPrompt: aiDigestPromptInput ? aiDigestPromptInput.value.trim() : (AIService.getConfig().digestPrompt || ''),
                     autoSummary: dialog.querySelector('#ai-auto-summary')?.checked || false,
                     titleTranslation: dialog.querySelector('#ai-title-translation')?.checked || false,
-                    titleTranslationMode: dialog.querySelector('input[name="title-translation-mode"]:checked')?.value || 'bilingual'
+                    titleTranslationMode: dialog.querySelector('input[name="title-translation-mode"]:checked')?.value || 'bilingual',
+                    titleTranslationScope: dialog.querySelector('input[name="title-translation-scope"]:checked')?.value || 'all',
+                    titleTranslationGroupIds: Array.from(dialog.querySelectorAll('input[name="title-translation-group"]:checked')).map(cb => parseInt(cb.value))
                 };
 
                 try {

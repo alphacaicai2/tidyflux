@@ -94,7 +94,9 @@ export const AIService = {
             targetLang: 'zh-CN',
             autoSummary: false,
             titleTranslation: false,
-            titleTranslationMode: 'bilingual'
+            titleTranslationMode: 'bilingual',
+            titleTranslationScope: 'all', // 'all' or 'groups'
+            titleTranslationGroupIds: []
         };
     },
 
