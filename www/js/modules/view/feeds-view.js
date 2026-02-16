@@ -140,11 +140,6 @@ export const FeedsView = {
                 <span class="feed-name">${i18n.t('nav.all')}</span>
                 ${totalUnread > 0 ? `<span class="feed-unread-count all-unread-count">${totalUnread}</span>` : ''}
             </button>
-            <button class="feed-item-btn ${isAllActive ? 'active' : ''}" data-feed-id="" data-all-groups="1">
-                ${Icons.list}
-                <span class="feed-name">${i18n.t('nav.all_groups')}</span>
-                ${totalUnread > 0 ? `<span class="feed-unread-count all-groups-unread-count">${totalUnread}</span>` : ''}
-            </button>
             <button class="feed-item-btn ${AppState.viewingFavorites ? 'active' : ''}" id="favorites-btn">
                 ${Icons.star}
                 <span class="feed-name">${i18n.t('nav.starred')}</span>
@@ -244,10 +239,10 @@ export const FeedsView = {
      * @param {Array} groups - 分组数组
      */
     updateUnreadCounts(feeds, groups, digestsData = null) {
-        // 更新全部文章 / 所有分组 计数
+        // 更新全部文章 计数
         const totalUnread = feeds.reduce((sum, f) => sum + (f.unread_count || 0), 0);
         DOMElements.feedsList.querySelectorAll('.feed-item-btn[data-feed-id=""]').forEach(btn => {
-            const cls = btn.dataset.allGroups ? 'feed-unread-count all-groups-unread-count' : 'feed-unread-count all-unread-count';
+            const cls = 'feed-unread-count all-unread-count';
             this._updateBadge(btn, totalUnread, cls);
         });
 
