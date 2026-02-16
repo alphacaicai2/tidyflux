@@ -142,54 +142,81 @@ body.panel-resizing .panel-resize-handle {
 
 /* 面板头部 */
 .panel-header {
-  padding: 12px 16px; /* 增加内边距 */
-  border-bottom: none;
-  display: flex;
-  flex-direction: column; /* 改为垂直排列 */
-  align-items: flex-start; /* 左对齐 */
-  justify-content: flex-start;
-  flex-shrink: 0;
-  background: transparent;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  background: rgba(var(--bg-rgb), 0.95); /* 增加一点不透明度 */
-  background: color-mix(in srgb, var(--bg-color), transparent 5%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border-color); /* 添加底边框分隔 */
-  height: auto; /* 高度自适应 */
-  min-height: 80px; /* 最小高度 */
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-wrap: wrap; /* 允许换行 */
+    align-items: center;
+    justify-content: space-between; /* 两端对齐 */
+    flex-shrink: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: rgba(var(--bg-rgb), 0.95);
+    background: color-mix(in srgb, var(--bg-color), transparent 5%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    height: auto;
+    min-height: 80px;
 }
 
 .app-logo {
-  display: none; /* 暂时隐藏 Logo 简化布局，或者保留但调整位置 */
+    display: none;
 }
 
 .panel-header h2 {
-  font-size: 1.1em;
-  font-weight: 700;
-  margin: 0 0 8px 0; /* 标题下方增加间距 */
-  color: var(--title-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  width: 100%; /* 占满宽度 */
-  text-align: left;
-  padding: 0;
+    font-size: 1.1em;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: var(--title-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%; /* 占满第一行 */
+    text-align: left;
+    order: 1; /* 确保标题在第一行 */
 }
 
 /* 文章列表过滤按钮 */
 .articles-filter-buttons {
-  display: flex;
-  gap: 8px; /* 按钮间距 */
-  align-items: center;
-  width: 100%; /* 占满宽度 */
-  justify-content: flex-start; /* 左对齐 */
-  margin: 0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%; /* 占满第二行 */
+    justify-content: flex-start;
+    margin: 0;
+    order: 3; /* 按钮在最后 */
 }
+
+/* 如果有其他 header action (如搜索按钮)，让它们浮动在右上角或 flex order 处理 */
+/* 假设 header actions 在 html 中位于 h2 之后 */
+.header-actions {
+   /* 暂时无法精确定位，但在 flex-wrap 下，如果 html 结构允许，它们可能会跟在 buttons 后面 */
+   /* 更稳妥的方式是绝对定位 */
+}
+
+/* 针对移动端侧边栏切换按钮 (通常是第一个子元素) */
+#sidebar-toggle {
+    margin-right: 12px;
+    order: 0; 
+}
+/* 但 index.html 里没有 sidebar-toggle? 
+   看 index.html: 
+   <div id="articles-panel"> <div class="panel-header"> <h2>...</h2> <div id="articles-filter-buttons">...</div> 
+   似乎没有 header-actions？
+   如果 #header-actions 被添加了，需要确保它在第一行。
+   为了稳妥，将 Filter Buttons 设为 width 100% 且 order 3。
+   Title 设为 flex: 1，min-width: 0。
+   
+   Wait, previous layout:
+   Row 1: Title (flex:1) + Buttons
+   
+   New Layout:
+   Row 1: Title (width: 100%)
+   Row 2: Buttons (width: 100%)
+*/
 
 .filter-btn {
   padding: 4px 10px;
